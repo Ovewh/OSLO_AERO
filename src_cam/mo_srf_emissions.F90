@@ -386,11 +386,11 @@ contains
     ! OSLO_AERO begin
     ! Remove DMS emissions if option is not "from file"
     ! Online emissions are treated in seasalt module
-    if (.not. oslo_aero_dms_inq())  then ! Returns "True" if "emissions from file"
-       if (dms_ndx .gt. 0)then
-          sflx(:,dms_ndx) = 0.0_r8
-       end if
-    end if
+!    if (.not. oslo_aero_dms_inq())  then ! Returns "True" if "emissions from file"
+!       if (dms_ndx .gt. 0)then
+!          sflx(:,dms_ndx) = 0.0_r8
+!       end if
+!    end if
     ! OSLO_AERO end
 
     do i = 1,ncol

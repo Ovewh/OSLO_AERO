@@ -261,14 +261,14 @@ contains
           flux (:ncol) = 62.13*kwdms(:ncol)*1e-9*odms(:ncol)
        endif
 
-       cflx(:ncol,pndx_fdms) = flux(:ncol)
+       cflx(:ncol,pndx_fdms) = cflx(:ncol,pndx_fdms) + flux(:ncol)
 
        call outfld('odms', odms(:ncol), ncol, lchnk)
 
     elseif (dms_source=='ocean_flux') then
 
        ! if ocean flux
-       cflx(:ncol,pndx_fdms) = fdms(:ncol)
+       cflx(:ncol,pndx_fdms) = cflx(:ncol,pndx_fdms) + fdms(:ncol)
 
     endif
 
