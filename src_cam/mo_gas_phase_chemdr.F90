@@ -61,6 +61,7 @@ contains
 
      ! OSLO_AERO begin
     use mo_chem_utls,      only : get_spc_ndx, get_extfrc_ndx, get_rxt_ndx, get_inv_ndx
+    use modal_aero_wateruptake, only: modal_strat_sulfate
     ! OSLO_AERO end
     use cam_history,       only : addfld,add_default,horiz_only
     use mo_chm_diags,      only : chm_diags_inti
@@ -229,19 +230,21 @@ contains
 
     ! OSLO_AERO begin
     ! Adding extra fields for oxi-output (before and after diurnal variations.)
-    call addfld ('OH_bef    ',  (/ 'lev' /), 'A','unit', 'OH invariants before adding diurnal variations'           )
-    call addfld ('HO2_bef   ',  (/ 'lev' /), 'A','unit', 'HO2 invariants before adding diurnal variations'          )
-    call addfld ('NO3_bef   ',  (/ 'lev' /), 'A','unit', 'NO3 invariants before adding diurnal variations'          )
-    call addfld ('OH_aft    ',  (/ 'lev' /), 'A','unit', 'OH invariants after adding diurnal variations'            )
-    call addfld ('HO2_aft   ',  (/ 'lev' /), 'A','unit', 'HO2 invariants after adding diurnal variations'           )
-    call addfld ('NO3_aft   ',  (/ 'lev' /), 'A','unit', 'NO3 invariants after adding diurnal variations'           )
+    if (.not.modal_strat_sulfate) then
+       call addfld ('OH_bef    ',  (/ 'lev' /), 'A','unit', 'OH invariants before adding diurnal variations'           )
+       call addfld ('HO2_bef   ',  (/ 'lev' /), 'A','unit', 'HO2 invariants before adding diurnal variations'          )
+       call addfld ('NO3_bef   ',  (/ 'lev' /), 'A','unit', 'NO3 invariants before adding diurnal variations'          )
+       call addfld ('OH_aft    ',  (/ 'lev' /), 'A','unit', 'OH invariants after adding diurnal variations'            )
+       call addfld ('HO2_aft   ',  (/ 'lev' /), 'A','unit', 'HO2 invariants after adding diurnal variations'           )
+       call addfld ('NO3_aft   ',  (/ 'lev' /), 'A','unit', 'NO3 invariants after adding diurnal variations'           )
 
-    call add_default ('OH_bef       ', 1, ' ')
-    call add_default ('HO2_bef      ', 1, ' ')
-    call add_default ('NO3_bef      ', 1, ' ')
-    call add_default ('OH_aft       ', 1, ' ')
-    call add_default ('HO2_aft      ', 1, ' ')
-    call add_default ('NO3_aft      ', 1, ' ')
+       call add_default ('OH_bef       ', 1, ' ')
+       call add_default ('HO2_bef      ', 1, ' ')
+       call add_default ('NO3_bef      ', 1, ' ')
+       call add_default ('OH_aft       ', 1, ' ')
+       call add_default ('HO2_aft      ', 1, ' ')
+       call add_default ('NO3_aft      ', 1, ' ')
+    endif
     ! OSLO_AERO end
 
     if (het1_ndx>0) then
@@ -341,6 +344,7 @@ contains
     use gas_wetdep_opts,   only : gas_wetdep_method
     ! OSLO_AERO begin
     use oslo_aero_diurnal_var, only : set_diurnal_invariants
+    use modal_aero_wateruptake, only: modal_strat_sulfate
     ! OSLO_AERO end
     use physics_buffer,    only : physics_buffer_desc, pbuf_get_field, pbuf_old_tim_idx
     use infnan,            only : nan, assignment(=)
@@ -672,16 +676,20 @@ contains
     !-----------------------------------------------------------------------
     !        ... Set the "day/night cycle for prescribed oxidants"
     !-----------------------------------------------------------------------
-    call outfld('OH_bef',    invariants(:,:,id_oh),  ncol, lchnk)
-    call outfld('HO2_bef',   invariants(:,:,id_ho2), ncol, lchnk)
-    call outfld('NO3_bef',   invariants(:,:,id_no3), ncol, lchnk)
+    if (.not.modal_strat_sulfate) then 
+       call outfld('OH_bef',    invariants(:,:,id_oh),  ncol, lchnk)
+       call outfld('HO2_bef',   invariants(:,:,id_ho2), ncol, lchnk)
+       call outfld('NO3_bef',   invariants(:,:,id_no3), ncol, lchnk)
+    endif
 
     if (inv_oh.or.inv_ho2.or.inv_no3)  & !++IH: added inv_no3
       call set_diurnal_invariants(invariants,delt,ncol,lchnk,inv_oh,inv_ho2,id_oh,id_ho2,inv_no3,id_no3) !++IH: added inv_no3 and id_no3
 
-    call outfld('OH_aft',    invariants(:,:,id_oh),  ncol, lchnk)
-    call outfld('HO2_aft',   invariants(:,:,id_ho2), ncol, lchnk)
-    call outfld('NO3_aft',   invariants(:,:,id_no3), ncol, lchnk)
+    if (.not.modal_strat_sulfate) then
+       call outfld('OH_aft',    invariants(:,:,id_oh),  ncol, lchnk)
+       call outfld('HO2_aft',   invariants(:,:,id_ho2), ncol, lchnk)
+       call outfld('NO3_aft',   invariants(:,:,id_no3), ncol, lchnk)
+    endif
     ! OSLO_AERO end
     !-----------------------------------------------------------------------
     !        ... stratosphere aerosol surface area
