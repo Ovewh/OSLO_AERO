@@ -370,8 +370,6 @@ contains
     reff_strat = 0._r8
     strato_sad = 0._r8
 
-!   write(iulog,*) 'modal_strat_sulfate : ', modal_strat_sulfate
-
     if (.not. modal_strat_sulfate) return
 
     beglev(:ncol)=top_lev
@@ -607,11 +605,6 @@ contains
   subroutine surf_area_dens( ncol, mmr, pmid, temp, beglev, endlev, sad, reff, sfc )
     ! djlo : diam kept out as argument
     use mo_constants     , only : pi
-!    use commondefinitions, only: nmodes_oslo => nmodes
-!    use const            , only: numberToSurface
-!    use aerosoldef       , only: lifeCycleNumberMedianRadius
-!    use aerosoldef       , only: lifeCycleSigma  ! djlo
-!    use oslo_utils       , only: calculateNumberConcentration
 
     ! dummy args
     integer,  intent(in)  :: ncol
@@ -641,7 +634,7 @@ contains
     !Get air density in all layers
     do k=1,pver
        do i=1,ncol
-          rho_air(i,k) = pmid(i,k)/(temp(i,k)*287.04_r8)
+          rho_air(i,k) = pmid(i,k)/(temp(i,k)*rair)
        end do
     end do
     !    
@@ -655,17 +648,15 @@ contains
     vol      = 0._r8
     reff     = 0._r8
 
-    do i=1,ncol ! djlo : added explicit loop over i (because of ltrop(i) dependence
+    do i=1,ncol ! djlo : added explicit loop over i (because of ltrop(i) dependence)
        do k=beglev(i),endlev(i)
           do m=1,nmodes_oslo
              if ( m .eq. 1 &
              .or. m .eq. 2 &
              .or. m .eq. 4 &
              .or. m .eq. 5 ) then
-! skipped mode 12 and 14
-!             .or. m .eq. 12 & 
-!             .or. m .eq. 14 ) then  
-
+!               currently only over modes 1,2,4 and 5   
+!               might be extended in the future with modes 12 and 14
                 sad_mode(i,k,m) = numberConcentration(i,k,m)*numberToSurface(m)*1.e-2_r8 !m2/m3 ==> cm2/cm3
 
                 vol_mode(i,k,m) = numberConcentration(i,k,m) &
