@@ -231,12 +231,12 @@ contains
     ! OSLO_AERO begin
     ! Adding extra fields for oxi-output (before and after diurnal variations.)
     if (.not.modal_strat_sulfate) then
-       call addfld ('OH_bef    ',  (/ 'lev' /), 'A','unit', 'OH invariants before adding diurnal variations'           )
-       call addfld ('HO2_bef   ',  (/ 'lev' /), 'A','unit', 'HO2 invariants before adding diurnal variations'          )
-       call addfld ('NO3_bef   ',  (/ 'lev' /), 'A','unit', 'NO3 invariants before adding diurnal variations'          )
-       call addfld ('OH_aft    ',  (/ 'lev' /), 'A','unit', 'OH invariants after adding diurnal variations'            )
-       call addfld ('HO2_aft   ',  (/ 'lev' /), 'A','unit', 'HO2 invariants after adding diurnal variations'           )
-       call addfld ('NO3_aft   ',  (/ 'lev' /), 'A','unit', 'NO3 invariants after adding diurnal variations'           )
+       call addfld ('OH_bef    ',  (/ 'lev' /), 'A','molecules cm-3', 'OH invariants before adding diurnal variations'           )
+       call addfld ('HO2_bef   ',  (/ 'lev' /), 'A','molecules cm-3', 'HO2 invariants before adding diurnal variations'          )
+       call addfld ('NO3_bef   ',  (/ 'lev' /), 'A','molecules cm-3', 'NO3 invariants before adding diurnal variations'          )
+       call addfld ('OH_aft    ',  (/ 'lev' /), 'A','molecules cm-3', 'OH invariants after adding diurnal variations'            )
+       call addfld ('HO2_aft   ',  (/ 'lev' /), 'A','molecules cm-3', 'HO2 invariants after adding diurnal variations'           )
+       call addfld ('NO3_aft   ',  (/ 'lev' /), 'A','molecules cm-3', 'NO3 invariants after adding diurnal variations'           )
 
        call add_default ('OH_bef       ', 1, ' ')
        call add_default ('HO2_bef      ', 1, ' ')
