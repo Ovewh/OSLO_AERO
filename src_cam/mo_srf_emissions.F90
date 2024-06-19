@@ -12,9 +12,6 @@ module mo_srf_emissions
   use ppgrid,        only : pcols, begchunk, endchunk
   use cam_logfile,   only : iulog
   use tracer_data,   only : trfld,trfile
-  ! OSLO_AERO begin
-  use oslo_aero_ocean, only: oslo_aero_dms_inq
-  ! OSLO_AERO end
 
   implicit none
 
@@ -382,16 +379,6 @@ contains
     doy_loc     = aint( calday )
     declination = dec_max * cos((doy_loc - 172._r8)*twopi/dayspy)
     tod = (calday - doy_loc) + .5_r8
-
-    ! OSLO_AERO begin
-    ! Remove DMS emissions if option is not "from file"
-    ! Online emissions are treated in seasalt module
-!    if (.not. oslo_aero_dms_inq())  then ! Returns "True" if "emissions from file"
-!       if (dms_ndx .gt. 0)then
-!          sflx(:,dms_ndx) = 0.0_r8
-!       end if
-!    end if
-    ! OSLO_AERO end
 
     do i = 1,ncol
        !
