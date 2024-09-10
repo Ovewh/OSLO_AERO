@@ -361,7 +361,6 @@ contains
 
           wsubi(i,k) = max(wsubi_min, wsub(i,k))
           if (.not. use_preexisting_ice) then
-
              wsubi(i,k) = min(wsubi(i,k), 0.2_r8)
           endif
           wsub(i,k)  = max(wsub_min, wsub(i,k))
