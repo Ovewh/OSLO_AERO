@@ -44,7 +44,7 @@ module oslo_aero_dust
   real(r8)          :: dust_emis_fact = -1.e36_r8        ! tuning parameter for dust emissions
   character(len=cl) :: soil_erod_file = 'soil_erod_file' ! full pathname for soil erodibility dataset
 
-  logical, parameter, public :: dust_active = .TRUE.
+  logical, protected, public :: dust_active = .true.
 
   real(r8), allocatable ::  soil_erodibility(:,:)  ! soil erodibility factor
   real(r8) :: soil_erod_fact                       ! tuning parameter for dust emissions
@@ -61,7 +61,7 @@ contains
     integer :: unitn, ierr
     character(len=*), parameter :: subname = 'dust_readnl'
 
-    namelist /dust_nl/ dust_emis_fact, soil_erod_file
+    namelist /dust_nl/ dust_emis_fact, soil_erod_file, dust_active
     !-----------------------------------------------------------------------------
 
     ! Read namelist
@@ -81,6 +81,8 @@ contains
     if (ierr /= mpi_success) call endrun(subname//" mpi_bcast: dust_emis_fact")
     call mpi_bcast(soil_erod_file, len(soil_erod_file), mpi_character, mstrid, mpicom, ierr)
     if (ierr /= mpi_success) call endrun(subname//" mpi_bcast: soil_erod_file")
+    call mpi_bcast(dust_active, 1, mpi_logical, mstrid, mpicom, ierr)
+    if (ierr /= mpi_success) call endrun(subname//" mpi_bcast: dust_active")   
 
   end subroutine oslo_aero_dust_readnl
 
