@@ -72,6 +72,10 @@ module oslo_aero_microp
 
   ! prescribed aerosol bulk sulfur scale factor
   real(r8) :: bulk_scale    
+  
+  ! namelist parameters
+  real(r8), protected :: wsub_min  ! minimum sub-grid vertical velocity (liquid) before scale factor
+  real(r8), protected :: wsubi_min ! minimum sub-grid vertical velocity (ice)
 
   integer :: npccn_idx, rndst_idx, nacon_idx
 
@@ -128,6 +132,11 @@ contains
     call mpi_bcast(microp_aero_wsubi_min, 1, mpi_real8, mstrid, mpicom, ierr)
     if (ierr /= 0) call endrun(subname//": FATAL: mpi_bcast: microp_aero_wsubi_min")
 
+    wsub_min = microp_aero_wsub_min
+    wsubi_min = microp_aero_wsubi_min
+
+    if(wsub_min == unset_r8) call endrun(subname//": FATAL: wsub_min is not set")
+    if(wsubi_min == unset_r8) call endrun(subname//": FATAL: wsubi_min is not set")
     ! set local variables
     bulk_scale = microp_aero_bulk_scale
 
@@ -329,8 +338,8 @@ contains
     end select
 
     ! Set minimum values above top_lev.
-    wsub(:ncol,:top_lev-1)  = 0.20_r8
-    wsubi(:ncol,:top_lev-1) = 0.001_r8
+    wsub(:ncol,:top_lev-1)  = wsub_min
+    wsubi(:ncol,:top_lev-1) = wsubi_min
 
     do k = top_lev, pver
        do i = 1, ncol
@@ -352,6 +361,7 @@ contains
 
           wsubi(i,k) = max(0.001_r8, wsub(i,k))
           if (.not. use_preexisting_ice) then
+             ! add wsubi limit
              wsubi(i,k) = min(wsubi(i,k), 0.2_r8)
           endif
           wsub(i,k)  = max(0.20_r8, wsub(i,k))
