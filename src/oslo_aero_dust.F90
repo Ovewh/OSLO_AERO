@@ -20,7 +20,7 @@ module oslo_aero_dust
   use pio,              only: file_desc_t,pio_inq_dimid,pio_inq_dimlen,pio_get_var,pio_inq_varid, PIO_NOWRITE
   !
   use oslo_aero_share,  only: l_dst_a2, l_dst_a3
-
+  real(r8), parameter :: unset_r8 = huge(1.0_r8)
   implicit none
   private
 
@@ -35,7 +35,6 @@ module oslo_aero_dust
   character(len=6), public :: dust_names(10)
 
   integer , parameter :: numberOfDustModes = 2  !define in oslo_aero_share?
-  real(r8), parameter :: emis_fraction_in_mode(numberOfDustModes) = (/0.13_r8, 0.87_r8 /)
   integer             :: tracerMap(numberOfDustModes) = (/-99, -99/) !index of dust tracers in the modes
 
   integer , parameter, public :: dust_nbin = numberOfDustModes
@@ -48,6 +47,8 @@ module oslo_aero_dust
 
   real(r8), allocatable ::  soil_erodibility(:,:)  ! soil erodibility factor
   real(r8) :: soil_erod_fact                       ! tuning parameter for dust emissions
+  real(r8) :: emis_fact_in_coarse_mode = unset_r8  ! tuning parameter for distribution of dust emissions between modes
+  real(r8), protected, public :: emis_fraction_in_mode(numberOfDustModes) 
 
 !===============================================================================
 contains
@@ -58,10 +59,12 @@ contains
     character(len=*), intent(in) :: nlfile  ! filepath for file containing namelist input
 
     ! Local variables
+    real(r8) :: emis_fact_in_fine_mode 
     integer :: unitn, ierr
     character(len=*), parameter :: subname = 'dust_readnl'
 
-    namelist /dust_nl/ dust_emis_fact, soil_erod_file, dust_active
+    namelist /dust_nl/ dust_emis_fact, soil_erod_file, dust_active, &
+                         emis_fact_in_coarse_mode  
     !-----------------------------------------------------------------------------
 
     ! Read namelist
@@ -82,8 +85,21 @@ contains
     call mpi_bcast(soil_erod_file, len(soil_erod_file), mpi_character, mstrid, mpicom, ierr)
     if (ierr /= mpi_success) call endrun(subname//" mpi_bcast: soil_erod_file")
     call mpi_bcast(dust_active, 1, mpi_logical, mstrid, mpicom, ierr)
-    if (ierr /= mpi_success) call endrun(subname//" mpi_bcast: dust_active")   
+    if (ierr /= mpi_success) call endrun(subname//" mpi_bcast: dust_active") 
+    call mpi_bcast(emis_fact_in_coarse_mode, 1, mpi_real8, mstrid, mpicom, ierr)
+    if (ierr /= mpi_success) call endrun(subname//" mpi_bcast: emis_fact_in_coarse_mode")    
 
+    if (emis_fact_in_coarse_mode == unset_r8) call endrun(subname//" emis_fact_in_coarse_mode not set")
+
+    emis_fact_in_fine_mode = 1.0_r8 - emis_fact_in_coarse_mode
+    emis_fraction_in_mode = (emis_fact_in_fine_mode, emis_fact_in_coarse_mode)
+    
+    if (masterproc) then
+       write(iulog,*) 'dust_emis_fact = ', dust_emis_fact
+       write(iulog,*) 'soil_erod_file = ', soil_erod_file
+       write(iulog,*) 'dust_active = ', dust_active
+       write(iulog,*) 'emis_fact_in_coarse_mode = ', emis_fact_in_coarse_mode
+    end if
   end subroutine oslo_aero_dust_readnl
 
   !===============================================================================
