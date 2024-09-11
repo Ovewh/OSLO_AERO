@@ -20,10 +20,10 @@ module oslo_aero_dust
   use pio,              only: file_desc_t,pio_inq_dimid,pio_inq_dimlen,pio_get_var,pio_inq_varid, PIO_NOWRITE
   !
   use oslo_aero_share,  only: l_dst_a2, l_dst_a3
-  real(r8), parameter :: unset_r8 = huge(1.0_r8)
+
   implicit none
   private
-
+  real(r8), parameter :: unset_r8 = huge(1.0_r8)
   ! public routines
   public :: oslo_aero_dust_readnl
   public :: oslo_aero_dust_init
@@ -48,7 +48,7 @@ module oslo_aero_dust
   real(r8), allocatable ::  soil_erodibility(:,:)  ! soil erodibility factor
   real(r8) :: soil_erod_fact                       ! tuning parameter for dust emissions
   real(r8) :: emis_fact_in_coarse_mode = unset_r8  ! tuning parameter for distribution of dust emissions between modes
-  real(r8), protected, public :: emis_fraction_in_mode(numberOfDustModes) 
+  real(r8), public :: emis_fraction_in_mode(numberOfDustModes) 
 
 !===============================================================================
 contains
@@ -59,7 +59,7 @@ contains
     character(len=*), intent(in) :: nlfile  ! filepath for file containing namelist input
 
     ! Local variables
-    real(r8) :: emis_fact_in_fine_mode 
+    !real(r8) :: emis_fact_in_fine_mode 
     integer :: unitn, ierr
     character(len=*), parameter :: subname = 'dust_readnl'
 
@@ -91,8 +91,8 @@ contains
 
     if (emis_fact_in_coarse_mode == unset_r8) call endrun(subname//" emis_fact_in_coarse_mode not set")
 
-    emis_fact_in_fine_mode = 1.0_r8 - emis_fact_in_coarse_mode
-    emis_fraction_in_mode = (emis_fact_in_fine_mode, emis_fact_in_coarse_mode)
+
+    emis_fraction_in_mode = (/1.0_r8-emis_fact_in_coarse_mode, emis_fact_in_coarse_mode /)
     
     if (masterproc) then
        write(iulog,*) 'dust_emis_fact = ', dust_emis_fact

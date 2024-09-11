@@ -7,6 +7,8 @@ module oslo_aero_depos
   !------------------------------------------------------------------------------------------------
 
   use shr_kind_mod,            only: r8 => shr_kind_r8
+  use spmd_utils,              only: mpicom, mstrid=>masterprocid, masterproc
+  use spmd_utils,              only: mpi_logical, mpi_real8, mpi_character, mpi_integer,  mpi_success
   use ppgrid,                  only: pcols, pver, pverp, begchunk, endchunk
   use constituents,            only: pcnst, cnst_name, cnst_get_ind
   use phys_control,            only: phys_getopts, cam_physpkg_is
@@ -41,6 +43,8 @@ module oslo_aero_depos
   public :: oslo_aero_depos_dry ! dry deposition
   public :: oslo_aero_depos_wet ! wet deposition
   public :: oslo_aero_wetdep_init
+  public :: oslo_aero_depos_readnl 
+
 
   ! Private interfaces
   private :: oslo_aero_depvel_part
@@ -52,8 +56,10 @@ module oslo_aero_depos
   private :: wetdepa_v2  ! scavenging codes for very soluble aerosols -- CAM5 version
   private :: wetdepg     ! scavenging of gas phase constituents by henry's law
   private :: clddiag     ! calc of cloudy volume and rain mixing ratio
-
-  real(r8), public :: sol_facti_cloud_borne
+  
+  ! namelist variabless
+  real(r8), public, protected :: sol_facti_cloud_borne
+  real(r8), public, protected :: f_act_conv_coarse_dust = huge(1.0_r8)
 
   real(r8), parameter :: cmftau = 3600._r8
   real(r8), parameter :: rhoh2o = 1000._r8 ! density of water
@@ -96,6 +102,41 @@ module oslo_aero_depos
 !===============================================================================
 contains
 !===============================================================================
+  subroutine oslo_aero_depos_readnl(nlfile)
+   
+   use namelist_utils, only: find_group_name
+   character(len=*), intent(in) :: nlfile
+
+   ! local variables
+   integer :: unitn, ierr
+   character(len=*), parameter :: subname='oslo_aero_depos_readnl'
+   
+   namelist /oslo_aero_depos_nl/ f_act_conv_coarse_dust
+   !-----------------------------------------------------------------------
+   
+   if (masterproc) then
+      open(newunit=unitn, file=trim(nlfile), status='old')
+      call find_group_name(unitn, 'oslo_aero_depos', status=ierr)
+      if (ierr==0) then
+         read(unitn, oslo_aero_depos_nl, iostat=ierr)
+         if (ierr /= 0) then
+            call endrun(subname // ': ERROR reading namelist')
+         end if
+      end if
+      close(unitn)
+   end if
+
+   call mpi_bcast(f_act_conv_coarse_dust,1, mpi_real8,mpicom, ierr)
+   if (ierr /= mpi_success) call endrun(subname // ': mpi_bcast f_act_conv_coarse_dust')
+
+   if (f_act_conv_coarse_dust == huge(1.0_r8)) call endrun(subname // ': ERROR f_act_conv_coarse_dust not set in namelist')
+
+
+   if (masterproc) then
+      write(iulog,*) 'oslo_aero_depos_readnl: f_act_conv_coarse_dust = ', f_act_conv_coarse_dust
+   end if
+
+  end subroutine oslo_aero_depos_readnl
 
   subroutine oslo_aero_depos_init( pbuf2d )
 
@@ -581,7 +622,7 @@ contains
     real(r8) :: dqdt_tmp(pcols,pver)          ! temporary array to hold tendency for 1 species
     real(r8) :: f_act_conv(pcols,pver)        ! prescribed aerosol activation fraction for convective cloud   ! rce 2010/05/01
     real(r8) :: f_act_conv_coarse(pcols,pver) ! similar but for coarse mode                                   ! rce 2010/05/02
-    real(r8) :: f_act_conv_coarse_dust, f_act_conv_coarse_nacl ! rce 2010/05/02
+    real(r8) :: f_act_conv_coarse_nacl ! rce 2010/05/02
     real(r8) :: fracis_cw(pcols,pver)
     real(r8) :: prec(pcols)                    ! precipitation rate
     real(r8) :: q_tmp(pcols,pver)              ! temporary array to hold "most current" mixing ratio for 1 species
@@ -630,7 +671,7 @@ contains
     ! calculate the mass-weighted sol_factic for coarse mode species
     !    sol_factic_coarse(:,:) = 0.30_r8   ! tuned 1/4
     f_act_conv_coarse(:,:) = 0.60_r8   ! rce 2010/05/02
-    f_act_conv_coarse_dust = 0.40_r8   ! rce 2010/05/02
+    ! f_act_conv_coarse_dust = 0.40_r8   ! rce 2010/05/02
     f_act_conv_coarse_nacl = 0.80_r8   ! rce 2010/05/02
     f_act_conv_coarse(:,:) = 0.5_r8
 
