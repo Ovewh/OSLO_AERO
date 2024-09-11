@@ -115,7 +115,7 @@ contains
 
     ! Local variables
     integer :: unitn, ierr
-    character(len=*), parameter :: subname = 'hetfrz_classnuc_cam_readnl'
+    character(len=*), parameter :: subname = 'hetfrz_classnuc_oslo_readnl'
 
     namelist /hetfrz_classnuc_nl/ hist_hetfrz_classnuc, hetfrz_aer_scalfac
     !-----------------------------------------------------------------------------
