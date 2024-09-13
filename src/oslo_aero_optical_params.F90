@@ -23,12 +23,21 @@ module oslo_aero_optical_params
    private
 
    public  :: oslo_aero_optical_params_calc
+   public  :: oslo_aero_optical_params_readnl
 
    private :: inputForInterpol
 
+   ! namelist variables for the OsloAero optical parameters
+   real(r8), public, protected :: dst_ssa_scale = -1.0_r8
 !===============================================================================
 contains
 !===============================================================================
+   subroutine oslo_aero_optical_params_readnl
+      use spmd_utils,          only: mpicom, mstrid=>masterprocid, masterproc
+      use spmd_utils,          only: mpi_logical, mpi_real8, mpi_character, mpi_integer,  mpi_success
+
+   end subroutine oslo_aero_optical_params_readnl
+
 
    subroutine oslo_aero_optical_params_calc(lchnk, ncol, pint, pmid,                &
         coszrs, state, t, cld, qm1,                                                 &
@@ -310,7 +319,10 @@ contains
             end do
          enddo
       enddo
-
+      ! Scale dust ssa for ppe setup
+      if ( dst_ssa_scale  .ge. 0 ) then
+         ssa(:,:,6:7,:) = ssa(:,:,6:7,:)*dst_ssa_scale
+      end if
       ! SW Optical properties of total aerosol:
       do ib=1,nbands
          do k=1,pver
