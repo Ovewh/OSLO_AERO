@@ -603,7 +603,7 @@ contains
   !=============================================================================
 
   subroutine surf_area_dens( ncol, mmr, pmid, temp, beglev, endlev, sad, reff, sfc )
-    ! djlo : diam kept out as argument
+    ! The input, diam, used by MAM, is not used in OSLO_AERO
     use mo_constants     , only : pi
 
     ! dummy args
@@ -611,7 +611,7 @@ contains
     real(r8), intent(in)  :: mmr(:,:,:)
     real(r8), intent(in)  :: pmid(:,:)
     real(r8), intent(in)  :: temp(:,:)
-    ! real(r8), intent(in)  :: diam(:,:,:) ! djlo : kept out as argument
+    ! real(r8), intent(in)  :: diam(:,:,:) ! diam, used by MAM, is not used in OSLO_AERO
     integer,  intent(in)  :: beglev(:)
     integer,  intent(in)  :: endlev(:)
     real(r8), intent(out) :: sad(:,:)
@@ -622,8 +622,8 @@ contains
     !HAVE TO GET RID OF THIS MODE 0!! MESSES UP EVERYTHING!!
     real(r8)         :: numberConcentration(pcols,pver,0:nmodes_oslo)
     real(r8), target :: sad_mode(pcols,pver, nmodes_oslo)
-    real(r8)         :: vol_mode(pcols,pver, nmodes_oslo) ! djlo
-    real(r8)         :: vol(pcols,pver)                   ! djlo
+    real(r8)         :: vol_mode(pcols,pver, nmodes_oslo)
+    real(r8)         :: vol(pcols,pver)                  
     real(r8) :: rho_air(pcols,pver)
     integer :: m
     integer :: i,k
