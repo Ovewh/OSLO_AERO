@@ -849,21 +849,30 @@ contains
   end function qqcw_get_field
 
   !===============================================================================
-  subroutine calculateNumberConcentration(ncol, q, rho_air, numberConcentration)
+  subroutine calculateNumberConcentration(ncol, q, rho_air, numberConcentration, isChemistry)
 
     ! arguments
     integer  , intent(in)  :: ncol                                     !number of columns used
     real(r8) , intent(in)  :: q(pcols,pver,pcnst)                      ![kg/kg] mass mixing ratios
     real(r8) , intent(in)  :: rho_air(pcols,pver)                      ![kg/m3] air density
     real(r8) , intent(out) :: numberConcentration(pcols,pver,0:nmodes) ![#/m3] number concentration
+    logical, optional, intent(in) :: isChemistry
 
     ! local variables
     integer :: m, l, mm, k
+    logical :: isChemistry_local
 
     numberConcentration(:,:,:) = 0.0_r8
+
+    if ( present(isChemistry) ) then
+       isChemistry_local = isChemistry
+    else
+       isChemistry_local = .false.     ! standard setup
+    endif
+
     do m = 0, nmodes
        do l=1,getNumberOfBackgroundTracersInMode(m)
-          mm = getTracerIndex(m,l,.false.)
+          mm = getTracerIndex(m,l,isChemistry_local)
           do k=1,pver
              numberConcentration(:ncol,k,m) = numberConcentration(:ncol,k,m) &
                   + ( q(:ncol,k,mm) / getDryDensity(m,l))  !Volume of this tracer
