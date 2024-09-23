@@ -61,6 +61,8 @@ module aero_model
   use oslo_aero_aerocom_tables, only: initaeropt
   use oslo_aero_logn_tables,    only: initlogn
 
+  use modal_aero_wateruptake, only: modal_strat_sulfate
+
   implicit none
   private
 
@@ -100,7 +102,7 @@ contains
     integer :: unitn, ierr
     character(len=*), parameter :: subname = 'aero_model_readnl'
 
-    namelist /aerosol_nl/ sol_facti_cloud_borne, sol_factb_interstitial, sol_factic_interstitial
+    namelist /aerosol_nl/ sol_facti_cloud_borne, sol_factb_interstitial, sol_factic_interstitial, modal_strat_sulfate
     !-----------------------------------------------------------------------------
 
     ! Read namelist
@@ -121,6 +123,8 @@ contains
     if (ierr /= mpi_success) call endrun(subname//" mpi_bcast: sol_factb_interstitial")
     call mpi_bcast(sol_factic_interstitial, 1, mpi_real8, mstrid, mpicom, ierr)
     if (ierr /= mpi_success) call endrun(subname//" mpi_bcast: sol_factic_interstitial")
+    call mpi_bcast(modal_strat_sulfate, 1, mpi_real8, mstrid, mpicom, ierr)
+    if (ierr /= mpi_success) call endrun(subname//" mpi_bcast: modal_strat_sulfate")
 
     call oslo_aero_ctl_readnl(nlfilename)
     call oslo_aero_microp_readnl(nlfilename)
@@ -321,41 +325,23 @@ contains
     real(r8), intent(out)   :: reff_trop(:,:)
 
     ! local vars
-    ! HAVE TO GET RID OF THIS MODE 0!! MESSES UP EVERYTHING!!
-    real(r8)         :: numberConcentration(pcols,pver,0:nmodes_oslo)
-    real(r8), target :: sad_mode(pcols,pver,nmodes_oslo)
-    real(r8)         :: rho_air(pcols,pver)
-    integer          :: itrac,imode,icol,ilev
+    integer :: beglev(ncol)
+    integer :: endlev(ncol)
+  
+    integer :: i,k
 
-    ! Get air density
-    do ilev = 1,pver
-       do icol=1,ncol
-          rho_air(icol,ilev) = pmid(icol,ilev)/(temp(icol,ilev)*287.04_r8)
-       end do
-    end do
+    beglev(:ncol)=ltrop(:ncol)+1
+    endlev(:ncol)=pver
 
-    ! Get number concentrations
-    call calculateNumberConcentration(ncol, mmr, rho_air, numberConcentration)
+    ! diameter left out as an argument                                                       
+      call surf_area_dens(ncol, mmr, pmid, temp, beglev, endlev, sad_trop, reff_trop, sfc=sfc) 
 
-    ! Convert to area using lifecycle-radius
-    sad_mode = 0._r8
-    sad_trop = 0._r8
-    do imode=1,nmodes_oslo
-       do ilev=1,pver
-          sad_mode(:ncol,ilev,imode) = numberConcentration(:ncol,ilev,imode)*numberToSurface(imode)*1.e-2_r8 !m2/m3 ==> cm2/cm3
-          sad_trop(:ncol,ilev) = sad_trop(:ncol,ilev) + sad_mode(:ncol,ilev,imode)
-       end do
-    end do
-
-    do imode=1,nmodes_oslo
-       do ilev=1,pver
-          sfc(:ncol,ilev,imode) = sad_mode(:ncol,ilev,imode)     ! aitken_idx:aitken_idx)
-          dm_aer(:ncol,ilev,imode) = 2.0_r8*lifeCycleNumberMedianRadius(imode)
-       end do
-    end do
-
-    ! Need to implement reff_trop here
-    reff_trop(:,:) = 1.0e-6_r8
+      do i = 1,ncol                                                                            
+         do k = ltrop(i)+1, pver                                                               
+            ! djlo : do not use the 0-th mode                                                  
+            dm_aer(i,k,:) = 2._r8 * lifeCycleNumberMedianRadius(1:nmodes_oslo) * 1.e-2_r8 ! radius ==> diameter, m ==> cm
+         enddo                                                                                 
+      enddo
 
   end subroutine aero_model_surfarea
 
@@ -377,8 +363,20 @@ contains
     real(r8), intent(out)   :: strato_sad(:,:)
     real(r8), intent(out)   :: reff_strat(:,:)
 
-    reff_strat = 0.1e-6_r8
+   ! local vars
+    integer :: beglev(ncol)
+    integer :: endlev(ncol)   
+
+    reff_strat = 0._r8
     strato_sad = 0._r8
+
+    if (.not. modal_strat_sulfate) return
+
+    beglev(:ncol)=top_lev
+    endlev(:ncol)=ltrop(:ncol)
+    call surf_area_dens(ncol, mmr, pmid, temp, beglev, endlev, strato_sad, reff_strat)
+
+    return
 
   end subroutine aero_model_strat_surfarea
 
@@ -604,6 +602,81 @@ contains
   !=============================================================================
   ! private methods
   !=============================================================================
+
+  subroutine surf_area_dens( ncol, mmr, pmid, temp, beglev, endlev, sad, reff, sfc )
+    ! The input, diam, used by MAM, is not used in OSLO_AERO
+    use mo_constants     , only : pi
+
+    ! dummy args
+    integer,  intent(in)  :: ncol
+    real(r8), intent(in)  :: mmr(:,:,:)
+    real(r8), intent(in)  :: pmid(:,:)
+    real(r8), intent(in)  :: temp(:,:)
+    ! real(r8), intent(in)  :: diam(:,:,:) ! diam, used by MAM, is not used in OSLO_AERO
+    integer,  intent(in)  :: beglev(:)
+    integer,  intent(in)  :: endlev(:)
+    real(r8), intent(out) :: sad(:,:)
+    real(r8), intent(out) :: reff(:,:)
+    real(r8),optional, intent(out) :: sfc(:,:,:)
+
+    ! local vars
+    !HAVE TO GET RID OF THIS MODE 0!! MESSES UP EVERYTHING!!
+    real(r8)         :: numberConcentration(pcols,pver,0:nmodes_oslo)
+    real(r8), target :: sad_mode(pcols,pver, nmodes_oslo)
+    real(r8)         :: vol_mode(pcols,pver, nmodes_oslo)
+    real(r8)         :: vol(pcols,pver)                  
+    real(r8) :: rho_air(pcols,pver)
+    integer :: m
+    integer :: i,k
+
+    ! Compute surface aero for each mode.
+    ! Total over all modes as the surface area for chemical reactions.
+
+    !Get air density in all layers
+    do k=1,pver
+       do i=1,ncol
+          rho_air(i,k) = pmid(i,k)/(temp(i,k)*rair)
+       end do
+    end do
+    !    
+    !Get number concentrations in all layers
+    call calculateNumberConcentration(ncol, mmr, rho_air, numberConcentration, isChemistry=.true.)
+
+    !Convert to area using lifecycle-radius
+    sad_mode = 0._r8
+    sad      = 0._r8
+    vol_mode = 0._r8
+    vol      = 0._r8
+    reff     = 0._r8
+
+    do i=1,ncol ! djlo : added explicit loop over i (because of ltrop(i) dependence)
+       do k=beglev(i),endlev(i)
+          do m=1,nmodes_oslo
+             if ( m .eq. 1 &
+             .or. m .eq. 2 &
+             .or. m .eq. 4 &
+             .or. m .eq. 5 ) then
+!               currently only over modes 1,2,4 and 5   
+!               might be extended in the future with modes 12 and 14
+                sad_mode(i,k,m) = numberConcentration(i,k,m)*numberToSurface(m)*1.e-2_r8 !m2/m3 ==> cm2/cm3
+
+                vol_mode(i,k,m) = numberConcentration(i,k,m) &
+                                * 4._r8 / 3._r8 * pi * lifeCycleNumberMedianRadius(m)**3._r8 &
+                                * dexp(4.5_r8 * log(lifeCycleSigma(m)) *log(lifeCyclesigma(m))) ! m3/m3 = cm3/cm3  
+             endif
+          end do
+
+          sad(i,k) = sum(sad_mode(i,k,:))
+          vol(i,k) = sum(vol_mode(i,k,:))
+          reff(i,k) = 3._r8 * vol(i,k) / sad(i,k) ! djlo : maybe if-test needed when sad=0?
+       end do
+    end do
+
+    if ( present(sfc) ) then
+       sfc(:,:,:) = sad_mode(:,:,:)
+    endif
+
+  end subroutine surf_area_dens
 
   subroutine qqcw2vmr(lchnk, vmr, mbar, ncol, im, pbuf)
 
