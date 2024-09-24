@@ -114,8 +114,15 @@ contains
 
     if (masterproc) then
        write(iulog,*)"Reading aerosol tables from : " // trim(aerotab_table_dir)
-    endif
-
+      
+   endif
+   if (masterproc) then
+      if (use_aerocom) then
+         write(iulog,*)"Aerocom diagnostics are enabled? : true" 
+      else
+         write(iulog,*)"Aerocom diagnostics are enabled? : false"
+      end if
+   end if
     ! Error check for OCEAN file
     inquire( file=trim(ocean_filepath)//'/'//trim(ocean_filename), exist=fileExists )
     if(.not. fileExists)then
