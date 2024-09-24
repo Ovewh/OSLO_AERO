@@ -128,6 +128,7 @@ contains
 
     call oslo_aero_ctl_readnl(nlfilename)
     call oslo_aero_microp_readnl(nlfilename)
+    call oslo_aero_depos_readnl(nlfilename)
 
   end subroutine aero_model_readnl
 
