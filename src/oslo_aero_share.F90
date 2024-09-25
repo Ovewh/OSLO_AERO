@@ -12,6 +12,9 @@ module oslo_aero_share
   use cam_abortutils, only: endrun
   use physics_buffer, only: physics_buffer_desc, pbuf_get_field
   use physconst,      only: pi
+  !smb++
+  use spmd_utils,             only: masterproc
+  !smb--
   !
   implicit none
   public          ! Make default type private to the module
@@ -19,7 +22,9 @@ module oslo_aero_share
   !---------------------------
   ! Public interfaces
   !---------------------------
-
+  !smb++
+  public :: oslo_aero_share_readnl
+  !smb--
   public :: aero_register           ! register consituents
   public :: is_process_mode         ! Check is an aerosol specie is a process mode
   public :: isAerosol               ! Check is specie is aerosol (i.e. gases get .FALSE. here)
@@ -115,10 +120,14 @@ module oslo_aero_share
          1.8_r8, 1.8_r8, 1.8_r8, 1.8_r8  /)           !11-14
 
   !Radius used for the modes in the lifeCycle MAY ASSUME SOME GROWTH ALREADY HAPPENED
-  real(r8), parameter :: lifeCycleNumberMedianRadius(0:nmodes) = &
-       1.e-6_r8*(/ 0.0626_r8, 0.025_r8, 0.025_r8 , 0.04_r8,   0.06_r8,   0.075_r8, &
-                   0.22_r8,   0.63_r8,  0.0475_r8, 0.30_r8,   0.75_r8,  &    ! Salter et al. (2015)
-                   0.0118_r8, 0.024_r8, 0.04_r8  , 0.04_r8    /)
+  !smb++ change to protected to be able to use namelist options
+  !real(r8), parameter :: lifeCycleNumberMedianRadius(0:nmodes) = &
+  real(r8), protected :: lifeCycleNumberMedianRadius(0:nmodes) = &
+  !smb-- change to protected to be able to use namelist options
+       1.e-6_r8*(/ 0.0626_r8,                                               & !0
+                   0.025_r8, 0.025_r8 , 0.04_r8,   0.06_r8,   0.075_r8,     & !1-5
+                   0.22_r8,   0.63_r8,  0.0475_r8, 0.30_r8,   0.75_r8,  &    !6-10 Salter et al. (2015)
+                   0.0118_r8, 0.024_r8, 0.04_r8  , 0.04_r8    /)             !11-14
 
   !Sigma based on original lifecycle code (taken from "sigmak" used previously in lifecycle code)
   real(r8), parameter :: lifeCycleSigma(0:nmodes) =  &
@@ -210,7 +219,7 @@ module oslo_aero_share
   ! BC      : Does not really matter as long as soluble mass fraction is small
   !           However, numbers below reproduces values from MIRAGE paper
   !           New mass density (October 2016) is based on Bond and Bergstrom (2007): Light Absorption
-  !           by Carbonaceous Particles: An Investigative Review, Aerosol Science and Technology, 40:27•¡¹67.
+  !           by Carbonaceous Particles: An Investigative Review, Aerosol Science and Technology, 40:27ï¿½ï¿½ï¿½67.
   ! OM      : Soluble mass fraction tuned to give B of MIRAGE Paper
   ! DUST    : The numbers give B of ~ 0.07 (high end of Kohler, Kreidenweis et al, GRL, vol 36, 2009.
   !                                  (10% as soluble mass fraction seems reasonable)
@@ -283,10 +292,58 @@ module oslo_aero_share
   character(len=20) :: cloudTracerName(pcnst)
 
   integer, private :: qqcw(pcnst)=-1 ! Remaps modal_aero indices into pbuf
+  !smb++
+  real(r8), parameter, private :: unset_r8 = huge(1.0_r8)
+  !smb--
 
 !===============================================================================
 contains
 !===============================================================================
+  !smb++
+  subroutine oslo_aero_share_readnl(nlfile)
+
+    use namelist_utils, only: find_group_name
+    use spmd_utils,     only: mpicom, mstrid=>masterprocid, mpi_real8
+
+    character(len=*), intent(in) :: nlfile  ! filepath for file containing namelist input
+
+    ! Namelist variables
+    real(r8) :: lifecyclenmr_1 = unset_r8 ! prescribed lifecycle of mode 1
+    real(r8) :: lifecyclenmr_8 = unset_r8 ! prescribed lifecycle of mode 8
+
+    ! Local variables
+    integer :: unitn, ierr
+    character(len=*), parameter :: subname = 'oslo_aero_share_readnl'
+
+    namelist /oslo_aero_share_nl/ lifecyclenmr_1, lifecyclenmr_8
+    !-----------------------------------------------------------------------------
+
+    if (masterproc) then
+      open(newunit=unitn, file=trim(nlfile), status='old' )
+            call find_group_name(unitn, 'oslo_aero_share_nl', status=ierr)
+      if (ierr == 0) then
+        read(unitn, oslo_aero_share_nl, iostat=ierr)
+        if (ierr /= 0) then
+          WRITE(*,*) unitn,ierr
+          call endrun(subname // ':: ERROR reading namelist')
+        end if
+      end if
+      close(unitn)
+    end if
+    call mpi_bcast(lifecyclenmr_1, 1, mpi_real8, mstrid, mpicom, ierr)
+    if (ierr /= 0) call endrun(subname//": FATAL: mpi_bcast: microp_aero_bulk_scale")
+    call mpi_bcast(lifecyclenmr_8, 1, mpi_real8, mstrid, mpicom, ierr)
+    if (ierr /= 0) call endrun(subname//": FATAL: mpi_bcast: microp_aero_npccn_scale")
+
+    lifeCycleNumberMedianRadius(1) = lifecyclenmr_1
+    lifeCycleNumberMedianRadius(8) = lifecyclenmr_8
+
+    if(lifeCycleNumberMedianRadius(1) == unset_r8) call endrun(subname//": FATAL: lifeCycleNumberMedianRadius(1) is not set")
+    if(lifeCycleNumberMedianRadius(8) == unset_r8) call endrun(subname//": FATAL: lifeCycleNumberMedianRadius(8) is not set")
+    WRITE(*,*) 'lifeCycleNumberMedianRadius(1) = ', lifeCycleNumberMedianRadius(1)
+    WRITE(*,*) 'lifeCycleNumberMedianRadius(8) = ', lifeCycleNumberMedianRadius(8)
+  end subroutine
+  !smb--
 
   function is_process_mode(l_index_in, isChemistry) result(answer)
 
