@@ -43,8 +43,8 @@ module aero_model
   use oslo_aero_share,          only: lifeCycleNumberMedianRadius, rhopart, lifeCycleSigma
   use oslo_aero_share,          only: l_so4_a2, l_bc_n, l_bc_ax
   use oslo_aero_share,          only: MODE_IDX_BC_NUC, MODE_IDX_BC_EXT_AC
-  use oslo_aero_control,        only: oslo_aero_ctl_readnl
-  use oslo_aero_depos,          only: oslo_aero_depos_init
+  use oslo_aero_control,        only: oslo_aero_ctl_readnl, use_aerocom
+  use oslo_aero_depos,          only: oslo_aero_depos_init, oslo_aero_depos_readnl
   use oslo_aero_depos,          only: oslo_aero_depos_dry, oslo_aero_depos_wet, oslo_aero_wetdep_init
   use oslo_aero_coag,           only: initializeCoagulation, coagtend, clcoag
   use oslo_aero_condtend,       only: N_COND_VAP, COND_VAP_ORG_SV, COND_VAP_ORG_LV, COND_VAP_H2SO4
@@ -60,6 +60,8 @@ module aero_model
   use oslo_aero_aerodry_tables, only: initdry
   use oslo_aero_aerocom_tables, only: initaeropt
   use oslo_aero_logn_tables,    only: initlogn
+
+  use modal_aero_wateruptake, only: modal_strat_sulfate
 
   implicit none
   private
@@ -100,7 +102,7 @@ contains
     integer :: unitn, ierr
     character(len=*), parameter :: subname = 'aero_model_readnl'
 
-    namelist /aerosol_nl/ sol_facti_cloud_borne, sol_factb_interstitial, sol_factic_interstitial
+    namelist /aerosol_nl/ sol_facti_cloud_borne, sol_factb_interstitial, sol_factic_interstitial, modal_strat_sulfate
     !-----------------------------------------------------------------------------
 
     ! Read namelist
@@ -121,9 +123,12 @@ contains
     if (ierr /= mpi_success) call endrun(subname//" mpi_bcast: sol_factb_interstitial")
     call mpi_bcast(sol_factic_interstitial, 1, mpi_real8, mstrid, mpicom, ierr)
     if (ierr /= mpi_success) call endrun(subname//" mpi_bcast: sol_factic_interstitial")
+    call mpi_bcast(modal_strat_sulfate, 1, mpi_real8, mstrid, mpicom, ierr)
+    if (ierr /= mpi_success) call endrun(subname//" mpi_bcast: modal_strat_sulfate")
 
     call oslo_aero_ctl_readnl(nlfilename)
     call oslo_aero_microp_readnl(nlfilename)
+    call oslo_aero_depos_readnl(nlfilename)
 
   end subroutine aero_model_readnl
 
@@ -141,7 +146,7 @@ contains
     type(physics_buffer_desc), pointer :: pbuf2d(:,:)
 
     ! local vars
-    integer           :: m, n, id, l
+    integer           :: icnst,id
     character(len=20) :: dummy
     logical           :: history_aerosol ! Output MAM or SECT aerosol tendencies
     character(len=2)  :: unit_basename  ! Units 'kg' or '1'
@@ -153,10 +158,10 @@ contains
     call init_interp_constants() ! table initialization constants
     call initopt()               ! table initialization
     call initlogn()              ! table initialization
-#ifdef AEROCOM
-    call initdry()               ! table initialization
-    call initaeropt()            ! table initialization
-#endif
+    if (use_aerocom) then
+       call initdry()               ! table initialization
+       call initaeropt()            ! table initialization
+    end if
     call initializeCondensation()
     call oslo_aero_ocean_init()
     call oslo_aero_depos_init(pbuf2d)
@@ -186,28 +191,28 @@ contains
     call cnst_get_ind ( "SOA_SV", ndx_soa_sv, abort=.true.)
     ndx_soa_sv = chemistryIndex(ndx_soa_sv)
 
-    do m = 1,gas_pcnst
+    do icnst = 1,gas_pcnst
        unit_basename = 'kg'  ! Units 'kg' or '1'
 
-       call addfld( 'GS_'//trim(solsym(m)),horiz_only, 'A', unit_basename//'/m2/s ', &
-            trim(solsym(m))//' gas chemistry/wet removal (for gas species)')
+       call addfld( 'GS_'//trim(solsym(icnst)),horiz_only, 'A', unit_basename//'/m2/s ', &
+            trim(solsym(icnst))//' gas chemistry/wet removal (for gas species)')
 
-       call addfld( 'AQ_'//trim(solsym(m)),horiz_only, 'A', unit_basename//'/m2/s ', &
-            trim(solsym(m))//' aqueous chemistry (for gas species)')
+       call addfld( 'AQ_'//trim(solsym(icnst)),horiz_only, 'A', unit_basename//'/m2/s ', &
+            trim(solsym(icnst))//' aqueous chemistry (for gas species)')
 
-       if(physicsIndex(m).le.pcnst) then
-          if (getCloudTracerIndexDirect(physicsIndex(m)) .gt. 0)then
-             call addfld( 'AQ_'//getCloudTracerName(physicsIndex(m)),horiz_only, 'A', unit_basename//'/m2/s ', &
-                  trim(solsym(m))//' aqueous chemistry (for cloud species)')
+       if(physicsIndex(icnst)<=pcnst) then
+          if (getCloudTracerIndexDirect(physicsIndex(icnst)) > 0)then
+             call addfld( 'AQ_'//getCloudTracerName(physicsIndex(icnst)),horiz_only, 'A', unit_basename//'/m2/s ', &
+                  trim(solsym(icnst))//' aqueous chemistry (for cloud species)')
           end if
        end if
 
        if ( history_aerosol ) then
-          call add_default( 'GS_'//trim(solsym(m)), 1, ' ')
-          call add_default( 'AQ_'//trim(solsym(m)), 1, ' ')
-          if(physicsIndex(m).le.pcnst) then
-             if(getCloudTracerIndexDirect(physicsIndex(m)).gt.0)then
-                call add_default( 'AQ_'//getCloudTracerName(physicsIndex(m)),1,' ')
+          call add_default( 'GS_'//trim(solsym(icnst)), 1, ' ')
+          call add_default( 'AQ_'//trim(solsym(icnst)), 1, ' ')
+          if(physicsIndex(icnst)<=pcnst) then
+             if(getCloudTracerIndexDirect(physicsIndex(icnst))>0)then
+                call add_default( 'AQ_'//getCloudTracerName(physicsIndex(icnst)),1,' ')
              end if
           end if
        endif
@@ -321,41 +326,23 @@ contains
     real(r8), intent(out)   :: reff_trop(:,:)
 
     ! local vars
-    ! HAVE TO GET RID OF THIS MODE 0!! MESSES UP EVERYTHING!!
-    real(r8)         :: numberConcentration(pcols,pver,0:nmodes_oslo)
-    real(r8), target :: sad_mode(pcols,pver,nmodes_oslo)
-    real(r8)         :: rho_air(pcols,pver)
-    integer          :: l,m,i,k
+    integer :: beglev(ncol)
+    integer :: endlev(ncol)
+  
+    integer :: i,k
 
-    ! Get air density
-    do k=1,pver
-       do i=1,ncol
-          rho_air(i,k) = pmid(i,k)/(temp(i,k)*287.04_r8)
-       end do
-    end do
+    beglev(:ncol)=ltrop(:ncol)+1
+    endlev(:ncol)=pver
 
-    ! Get number concentrations
-    call calculateNumberConcentration(ncol, mmr, rho_air, numberConcentration)
+    ! diameter left out as an argument                                                       
+      call surf_area_dens(ncol, mmr, pmid, temp, beglev, endlev, sad_trop, reff_trop, sfc=sfc) 
 
-    ! Convert to area using lifecycle-radius
-    sad_mode = 0._r8
-    sad_trop = 0._r8
-    do m=1,nmodes_oslo
-       do k=1,pver
-          sad_mode(:ncol,k,m) = numberConcentration(:ncol,k,m)*numberToSurface(m)*1.e-2_r8 !m2/m3 ==> cm2/cm3
-          sad_trop(:ncol,k) = sad_trop(:ncol,k) + sad_mode(:ncol,k,m)
-       end do
-    end do
-
-    do m=1,nmodes_oslo
-       do k=1,pver
-          sfc(:ncol,k,m) = sad_mode(:ncol,k,m)     ! aitken_idx:aitken_idx)
-          dm_aer(:ncol,k,m) = 2.0_r8*lifeCycleNumberMedianRadius(m)
-       end do
-    end do
-
-    ! Need to implement reff_trop here
-    reff_trop(:,:) = 1.0e-6_r8
+      do i = 1,ncol                                                                            
+         do k = ltrop(i)+1, pver                                                               
+            ! djlo : do not use the 0-th mode                                                  
+            dm_aer(i,k,:) = 2._r8 * lifeCycleNumberMedianRadius(1:nmodes_oslo) * 1.e-2_r8 ! radius ==> diameter, m ==> cm
+         enddo                                                                                 
+      enddo
 
   end subroutine aero_model_surfarea
 
@@ -377,8 +364,20 @@ contains
     real(r8), intent(out)   :: strato_sad(:,:)
     real(r8), intent(out)   :: reff_strat(:,:)
 
-    reff_strat = 0.1e-6_r8
+   ! local vars
+    integer :: beglev(ncol)
+    integer :: endlev(ncol)   
+
+    reff_strat = 0._r8
     strato_sad = 0._r8
+
+    if (.not. modal_strat_sulfate) return
+
+    beglev(:ncol)=top_lev
+    endlev(:ncol)=ltrop(:ncol)
+    call surf_area_dens(ncol, mmr, pmid, temp, beglev, endlev, strato_sad, reff_strat)
+
+    return
 
   end subroutine aero_model_strat_surfarea
 
@@ -415,7 +414,8 @@ contains
 
     ! local vars
     integer, parameter :: nmodes_aq_chem = 1
-    integer  :: n,m,i,k,l
+    integer  :: icol,ilev
+    integer  :: imode,icnst,itrac
     integer  :: nstep
     real(r8) :: wrk(ncol)
     real(r8) :: dvmrcwdt(ncol,pver,gas_pcnst)
@@ -450,12 +450,12 @@ contains
 
     ! calculate tendency due to gas phase chemistry and processes
     dvmrdt(:ncol,:,:) = (vmr(:ncol,:,:) - vmr0(:ncol,:,:)) / delt
-    do m = 1, gas_pcnst
+    do icnst = 1, gas_pcnst
        wrk(:) = 0._r8
-       do k = 1,pver
-          wrk(:ncol) = wrk(:ncol) + dvmrdt(:ncol,k,m)*adv_mass(m)/mbar(:ncol,k)*pdel(:ncol,k)/gravit
+       do ilev = 1,pver
+          wrk(:ncol) = wrk(:ncol) + dvmrdt(:ncol,ilev,icnst)*adv_mass(icnst)/mbar(:ncol,ilev)*pdel(:ncol,ilev)/gravit
        end do
-       name = 'GS_'//trim(solsym(m))
+       name = 'GS_'//trim(solsym(icnst))
        call outfld( name, wrk(:ncol), ncol, lchnk )
     enddo
 
@@ -496,29 +496,29 @@ contains
     dvmrdt_sv1 = (vmr - dvmrdt_sv1)/delt
     dvmrcwdt_sv1 = (vmrcw - dvmrcwdt_sv1)/delt
 
-    if(ndx_h2so4 .gt. 0)then
+    if (ndx_h2so4 > 0)then
        del_h2so4_aqchem(:ncol,:) = dvmrdt_sv1(:ncol,:,ndx_h2so4)*delt !"production rate" of H2SO4
     else
        del_h2so4_aqchem(:ncol,:) = 0.0_r8
     end if
 
-    do m = 1,gas_pcnst
+    do icnst = 1,gas_pcnst
        wrk(:ncol) = 0._r8
-       do k = 1,pver
-          wrk(:ncol) = wrk(:ncol) + dvmrdt_sv1(:ncol,k,m)*adv_mass(m)/mbar(:ncol,k)*pdel(:ncol,k)/gravit
+       do ilev = 1,pver
+          wrk(:ncol) = wrk(:ncol) + dvmrdt_sv1(:ncol,ilev,icnst)*adv_mass(icnst)/mbar(:ncol,ilev)*pdel(:ncol,ilev)/gravit
        end do
-       name = 'AQ_'//trim(solsym(m))
+       name = 'AQ_'//trim(solsym(icnst))
        call outfld( name, wrk(:ncol), ncol, lchnk )
 
        !In oslo aero also write out the tendencies for the
        !cloud borne aerosols...
-       n = physicsIndex(m)
-       if (n.le.pcnst) then
-          if(getCloudTracerIndexDirect(n) .gt. 0)then
-             name = 'AQ_'//trim(getCloudTracerName(n))
+       itrac = physicsIndex(icnst)
+       if (itrac <= pcnst) then
+          if (getCloudTracerIndexDirect(itrac) > 0)then
+             name = 'AQ_'//trim(getCloudTracerName(itrac))
              wrk(:ncol)=0.0_r8
-             do k=1,pver
-                wrk(:ncol) = wrk(:ncol) + dvmrcwdt_sv1(:ncol,k,m)*adv_mass(m)/mbar(:ncol,k)*pdel(:ncol,k)/gravit
+             do ilev=1,pver
+                wrk(:ncol) = wrk(:ncol) + dvmrcwdt_sv1(:ncol,ilev,icnst)*adv_mass(icnst)/mbar(:ncol,ilev)*pdel(:ncol,ilev)/gravit
              end do
              call outfld( name, wrk(:ncol), ncol, lchnk )
           end if
@@ -527,18 +527,18 @@ contains
 
     ! condensation
     call vmr2mmr( vmr, mmr_tend_ncols, mbar, ncol )
-    do k = 1,pver
-       mmr_cond_vap_gasprod(:ncol,k,COND_VAP_H2SO4) = adv_mass(ndx_h2so4) &
-            * (del_h2so4_gasprod(:ncol,k)+del_h2so4_aqchem(:ncol,k)) / mbar(:ncol,k)/delt
-       mmr_cond_vap_gasprod(:ncol,k,COND_VAP_ORG_LV) = adv_mass(ndx_soa_lv) &
-            * del_soa_lv_gasprod(:ncol,k) / mbar(:ncol,k)/delt
-       mmr_cond_vap_gasprod(:ncol,k,COND_VAP_ORG_SV) = adv_mass(ndx_soa_sv) &
-            * del_soa_sv_gasprod(:ncol,k) / mbar(:ncol,k)/delt
+    do ilev = 1,pver
+       mmr_cond_vap_gasprod(:ncol,ilev,COND_VAP_H2SO4) = adv_mass(ndx_h2so4) &
+            * (del_h2so4_gasprod(:ncol,ilev)+del_h2so4_aqchem(:ncol,ilev)) / mbar(:ncol,ilev)/delt
+       mmr_cond_vap_gasprod(:ncol,ilev,COND_VAP_ORG_LV) = adv_mass(ndx_soa_lv) &
+            * del_soa_lv_gasprod(:ncol,ilev) / mbar(:ncol,ilev)/delt
+       mmr_cond_vap_gasprod(:ncol,ilev,COND_VAP_ORG_SV) = adv_mass(ndx_soa_sv) &
+            * del_soa_sv_gasprod(:ncol,ilev) / mbar(:ncol,ilev)/delt
     end do
 
     ! This should not happen since there are only production terms for these gases! !
     do cond_vap_idx=1,N_COND_VAP
-       where(mmr_cond_vap_gasprod(:ncol,:,cond_vap_idx).lt. 0.0_r8)
+       where(mmr_cond_vap_gasprod(:ncol,:,cond_vap_idx) < 0.0_r8)
           mmr_cond_vap_gasprod(:ncol,:,cond_vap_idx) = 0.0_r8
        end where
     end do
@@ -604,6 +604,81 @@ contains
   ! private methods
   !=============================================================================
 
+  subroutine surf_area_dens( ncol, mmr, pmid, temp, beglev, endlev, sad, reff, sfc )
+    ! The input, diam, used by MAM, is not used in OSLO_AERO
+    use mo_constants     , only : pi
+
+    ! dummy args
+    integer,  intent(in)  :: ncol
+    real(r8), intent(in)  :: mmr(:,:,:)
+    real(r8), intent(in)  :: pmid(:,:)
+    real(r8), intent(in)  :: temp(:,:)
+    ! real(r8), intent(in)  :: diam(:,:,:) ! diam, used by MAM, is not used in OSLO_AERO
+    integer,  intent(in)  :: beglev(:)
+    integer,  intent(in)  :: endlev(:)
+    real(r8), intent(out) :: sad(:,:)
+    real(r8), intent(out) :: reff(:,:)
+    real(r8),optional, intent(out) :: sfc(:,:,:)
+
+    ! local vars
+    !HAVE TO GET RID OF THIS MODE 0!! MESSES UP EVERYTHING!!
+    real(r8)         :: numberConcentration(pcols,pver,0:nmodes_oslo)
+    real(r8), target :: sad_mode(pcols,pver, nmodes_oslo)
+    real(r8)         :: vol_mode(pcols,pver, nmodes_oslo)
+    real(r8)         :: vol(pcols,pver)                  
+    real(r8) :: rho_air(pcols,pver)
+    integer :: m
+    integer :: i,k
+
+    ! Compute surface aero for each mode.
+    ! Total over all modes as the surface area for chemical reactions.
+
+    !Get air density in all layers
+    do k=1,pver
+       do i=1,ncol
+          rho_air(i,k) = pmid(i,k)/(temp(i,k)*rair)
+       end do
+    end do
+    !    
+    !Get number concentrations in all layers
+    call calculateNumberConcentration(ncol, mmr, rho_air, numberConcentration, isChemistry=.true.)
+
+    !Convert to area using lifecycle-radius
+    sad_mode = 0._r8
+    sad      = 0._r8
+    vol_mode = 0._r8
+    vol      = 0._r8
+    reff     = 0._r8
+
+    do i=1,ncol ! djlo : added explicit loop over i (because of ltrop(i) dependence)
+       do k=beglev(i),endlev(i)
+          do m=1,nmodes_oslo
+             if ( m .eq. 1 &
+             .or. m .eq. 2 &
+             .or. m .eq. 4 &
+             .or. m .eq. 5 ) then
+!               currently only over modes 1,2,4 and 5   
+!               might be extended in the future with modes 12 and 14
+                sad_mode(i,k,m) = numberConcentration(i,k,m)*numberToSurface(m)*1.e-2_r8 !m2/m3 ==> cm2/cm3
+
+                vol_mode(i,k,m) = numberConcentration(i,k,m) &
+                                * 4._r8 / 3._r8 * pi * lifeCycleNumberMedianRadius(m)**3._r8 &
+                                * dexp(4.5_r8 * log(lifeCycleSigma(m)) *log(lifeCyclesigma(m))) ! m3/m3 = cm3/cm3  
+             endif
+          end do
+
+          sad(i,k) = sum(sad_mode(i,k,:))
+          vol(i,k) = sum(vol_mode(i,k,:))
+          reff(i,k) = 3._r8 * vol(i,k) / sad(i,k) ! djlo : maybe if-test needed when sad=0?
+       end do
+    end do
+
+    if ( present(sfc) ) then
+       sfc(:,:,:) = sad_mode(:,:,:)
+    endif
+
+  end subroutine surf_area_dens
+
   subroutine qqcw2vmr(lchnk, vmr, mbar, ncol, im, pbuf)
 
     !-----------------------------------------------------------------
@@ -621,18 +696,18 @@ contains
     !-----------------------------------------------------------------
     !	... Local variables
     !-----------------------------------------------------------------
-    integer :: k, m
+    integer :: ilev, icnst
     real(r8), pointer :: fldcw(:,:)
 
-    do m=1,gas_pcnst
-       if( adv_mass(m) /= 0._r8 ) then
-          fldcw => qqcw_get_field(pbuf, m+im)
+    do icnst=1,gas_pcnst
+       if( adv_mass(icnst) /= 0._r8 ) then
+          fldcw => qqcw_get_field(pbuf, icnst+im)
           if(associated(fldcw)) then
-             do k=1,pver
-                vmr(:ncol,k,m) = mbar(:ncol,k) * fldcw(:ncol,k) / adv_mass(m)
+             do ilev = 1,pver
+                vmr(:ncol,ilev,icnst) = mbar(:ncol,ilev) * fldcw(:ncol,ilev) / adv_mass(icnst)
              end do
           else
-             vmr(:,:,m) = 0.0_r8
+             vmr(:,:,icnst) = 0.0_r8
           end if
        end if
     end do
@@ -652,15 +727,16 @@ contains
     type(physics_buffer_desc), pointer :: pbuf(:)
 
     ! Local variables
-    integer :: k, m
+    integer :: ilev ! level index
+    integer :: icnst ! tracer index
     real(r8), pointer :: fldcw(:,:)
 
     ! The non-group species
-    do m = 1,gas_pcnst
-       fldcw => qqcw_get_field(pbuf, m+im)
-       if( adv_mass(m) /= 0._r8 .and. associated(fldcw)) then
-          do k = 1,pver
-             fldcw(:ncol,k) = adv_mass(m) * vmr(:ncol,k,m) / mbar(:ncol,k)
+    do icnst = 1,gas_pcnst
+       fldcw => qqcw_get_field(pbuf, icnst+im)
+       if( adv_mass(icnst) /= 0._r8 .and. associated(fldcw)) then
+          do ilev = 1,pver
+             fldcw(:ncol,ilev) = adv_mass(icnst) * vmr(:ncol,ilev,icnst) / mbar(:ncol,ilev)
           end do
        end if
     end do
@@ -672,7 +748,7 @@ contains
     ! A number of constants used in the emission and size-calculation in CAM-Oslo
 
     ! local variables
-    integer  :: kcomp,i
+    integer  :: imode,ibin
     real(r8) :: rhob(0:nmodes_oslo) !density of background aerosol in mode
     real(r8) :: rhorbc         !This has to do with fractal dimensions of bc, come back to this!!
     real(r8) :: sumnormnk
@@ -686,20 +762,20 @@ contains
     numberToSurface(:) =-1.0_r8
 
     !Prepare modal properties
-    do i=0, nmodes_oslo
-       if(getNumberOfTracersInMode(i) .gt. 0)then
+    do imode =0,nmodes_oslo
+       if(getNumberOfTracersInMode(imode) > 0)then
 
           !Approximate density of mode
           !density of mode is density of first species in mode
-          rhob(i)  = rhopart(getTracerIndex(i,1,.false.))
+          rhob(imode)  = rhopart(getTracerIndex(imode,1,.false.))
 
           !REPLACE THE EFACT-VARIABLE WITH THIS!!
-          volumeToNumber(i) = 1.0_r8 / &
-               ( DEXP ( 4.5_r8 * ( log(originalSigma(i)) * log(originalSigma(i)) ) ) &
-               *(4.0_r8/3.0_r8)*pi*(originalNumberMedianRadius(i))**3 )
+          volumeToNumber(imode) = 1.0_r8 / &
+               ( DEXP ( 4.5_r8 * ( log(originalSigma(imode)) * log(originalSigma(imode)) ) ) &
+               *(4.0_r8/3.0_r8)*pi*(originalNumberMedianRadius(imode))**3 )
 
-          numberToSurface(i) = 4.0_r8*pi*lifeCycleNumberMedianRadius(i)*lifeCycleNumberMedianRadius(i)&
-               *DEXP(log(lifeCycleSigma(i))*log(lifeCycleSigma(i)))
+          numberToSurface(imode) = 4.0_r8*pi*lifeCycleNumberMedianRadius(imode)*lifeCycleNumberMedianRadius(imode)&
+               *DEXP(log(lifeCycleSigma(imode))*log(lifeCycleSigma(imode)))
        end if
     end do
 
@@ -707,18 +783,18 @@ contains
     rBinEdge(1) = rTabMin
     totalLogDelta = log(rTabMax/rTabMin)
     logDeltaBin = totalLogDelta / nBinsTab
-    do i=2,nBinsTab+1
-       logNextEdge = log(rBinEdge(i-1)) + logDeltaBin
-       rBinEdge(i) = DEXP(logNextEdge)
-       rBinMidPoint(i-1) = sqrt(rBinEdge(i)*rBinEdge(i-1))
+    do ibin = 2,nBinsTab+1
+       logNextEdge = log(rBinEdge(ibin-1)) + logDeltaBin
+       rBinEdge(ibin) = DEXP(logNextEdge)
+       rBinMidPoint(ibin-1) = sqrt(rBinEdge(ibin)*rBinEdge(ibin-1))
     end do
 
     !Calculate the fraction of a mode which goes to aquous chemstry
     numberFractionAvailableAqChem(:)=0.0_r8
-    do i=1,nbmodes
-       if(isTracerInMode(i,l_so4_a2))then
-          numberFractionAvailableAqChem(i) =  1.0_r8 -  &
-               calculateLognormalCDF(rMinAquousChemistry,originalNumberMedianRadius(i), originalSigma(i))
+    do imode = 1,nbmodes
+       if(isTracerInMode(imode,l_so4_a2))then
+          numberFractionAvailableAqChem(imode) =  1.0_r8 -  &
+               calculateLognormalCDF(rMinAquousChemistry,originalNumberMedianRadius(imode), originalSigma(imode))
        end if
     end do
 
@@ -743,21 +819,21 @@ contains
     !Unclear if this should use the radii assuming growth or not!
     !Mostly used in code where it is sensible to assume some growth has
     !happened, so it is used here
-    do kcomp = 0,nmodes_oslo
-       do i=1,nBinsTab
+    do imode = 0,nmodes_oslo
+       do ibin=1,nBinsTab
           !dN/dlogR (does not sum to one over size range)
-          nk(kcomp,i) = calculatedNdLogR(rBinMidPoint(i), lifeCycleNumberMedianRadius(kcomp), lifeCycleSigma(kcomp))
+          nk(imode,ibin) = calculatedNdLogR(rBinMidPoint(ibin), lifeCycleNumberMedianRadius(imode), lifeCycleSigma(imode))
 
           !dN (sums to one) over the size range
-          normnk(kcomp,i) =logDeltaBin*nk(kcomp,i)
+          normnk(imode,ibin) =logDeltaBin*nk(imode,ibin)
        enddo
-    enddo  ! kcomp
+    enddo  ! imode
 
     ! Normalized size distribution must sum to one (accept 2% error)
-    do kcomp=0,nmodes_oslo
-       sumNormNk = sum(normnk(kcomp,:))
-       if(abs(sum(normnk(kcomp,:)) - 1.0_r8) .gt. 2.0e-2_r8)then
-          print*, "sum normnk", sum(normnk(kcomp,:))
+    do imode=0,nmodes_oslo
+       sumNormNk = sum(normnk(imode,:))
+       if(abs(sum(normnk(imode,:)) - 1.0_r8) > 2.0e-2_r8)then
+          print*, "sum normnk", sum(normnk(imode,:))
           call endrun()
        endif
     enddo
@@ -787,7 +863,7 @@ contains
     real(r8), intent(out) :: wetrho_processmode(pcols,pver,numberOfProcessModeTracers)
 
     !     local variables
-    integer  :: i,l,k,m,irelh,mm, tracerCounter
+    integer  :: icol,itrac,ilev,imode,irelh,mm, tracerCounter
     real(r8) :: xrh(pcols,pver)
     real(r8) :: relhum(pcols,pver) ! Relative humidity
     real(r8) :: qs(pcols,pver)     ! saturation specific humidity
@@ -803,54 +879,54 @@ contains
 
 
     !Get the tabulated rh in all grid cells
-    do k=1,pver
-       do i=1,ncol
-          call qsat_water(t(i,k), pmid(i,k), tmp1, qs(i,k))
-          xrh(i,k) = h2ommr(i,k)/qs(i,k)
-          xrh(i,k) = max(xrh(i,k),0.0_r8)
-          xrh(i,k) = min(xrh(i,k),1.0_r8)
-          relhum(i,k)=xrh(i,k)
-          xrh(i,k)=min(xrh(i,k),rhtab(10))
+    do ilev=1,pver
+       do icol=1,ncol
+          call qsat_water(t(icol,ilev), pmid(icol,ilev), tmp1, qs(icol,ilev))
+          xrh(icol,ilev) = h2ommr(icol,ilev)/qs(icol,ilev)
+          xrh(icol,ilev) = max(xrh(icol,ilev),0.0_r8)
+          xrh(icol,ilev) = min(xrh(icol,ilev),1.0_r8)
+          relhum(icol,ilev)=xrh(icol,ilev)
+          xrh(icol,ilev)=min(xrh(icol,ilev),rhtab(10))
        end do
     end do
 
     !Find the relh-index in all grid-points
     do irelh=1,SIZE(rhtab) - 1
-       do k=1,pver
-          do i=1,ncol
-             if (xrh(i,k).ge.rhtab(irelh) .and. xrh(i,k).le.rhtab(irelh+1)) then
-                irh1(i,k)=irelh                !lower index
-                irh2(i,k)=irelh+1              !higher index
+       do ilev=1,pver
+          do icol=1,ncol
+             if (xrh(icol,ilev) >= rhtab(irelh) .and. xrh(icol,ilev) <= rhtab(irelh+1)) then
+                irh1(icol,ilev)=irelh                !lower index
+                irh2(icol,ilev)=irelh+1              !higher index
              end if
           end do
        end do
     end do
 
-    do k=1,pver
-       do i=1,ncol
+    do ilev=1,pver
+       do icol=1,ncol
 
           !Get the indexes out as floating point single numbers
-          t_irh1 = irh1(i,k)
-          t_irh2 = irh2(i,k)
+          t_irh1 = irh1(icol,ilev)
+          t_irh2 = irh2(icol,ilev)
           t_rh1  = rhtab(t_irh1)
           t_rh2  = rhtab(t_irh2)
-          t_xrh  = xrh(i,k)
+          t_xrh  = xrh(icol,ilev)
 
-          do m = 0, nmodes_oslo
+          do imode = 0, nmodes_oslo
              !Do some weighting to mass mean property
              !weighting by 1.5 is number median ==> volumetric mean
              !http://dust.ess.uci.edu/facts/psd/psd.pdf
-             rmeanvol = lifeCycleNumberMedianRadius(m)*DEXP(1.5_r8*(log(lifeCycleSigma(m)))**2)
-             wetNumberMedianDiameter(i,k,m ) =  0.1e-6_r8 !Initialize to something..
+             rmeanvol = lifeCycleNumberMedianRadius(imode)*DEXP(1.5_r8*(log(lifeCycleSigma(imode)))**2)
+             wetNumberMedianDiameter(icol,ilev,imode) =  0.1e-6_r8 !Initialize to something..
              mixed_dry_rho = 1.e3_r8
 
              tracerCounter = 0
-             do l = 1,getNumberOfBackgroundTracersInMode(m)
+             do itrac = 1,getNumberOfBackgroundTracersInMode(imode)
 
                 tracerCounter = tracerCounter + 1
 
                 !which tracer is this?
-                mm = getTracerIndex(m,l,.false.)
+                mm = getTracerIndex(imode,itrac,.false.)
 
                 !radius of lower rh-bin for this tracer
                 rr1=rdivr0(t_irh1,mm)
@@ -863,42 +939,41 @@ contains
                      (t_rh2-t_rh1))*rmeanvol
 
                 !mixed density of dry particle
-                dry_rhopart_tmp(tracerCounter) = getDryDensity(m,l)
+                dry_rhopart_tmp(tracerCounter) = getDryDensity(imode,itrac)
 
              end do
 
              !Find the average growth of this mode
              !(still not taking into account how much we have!!)
-             if(TracerCounter .gt. 0)then
+             if(TracerCounter > 0)then
 
                 !Convert to diameter and take average (note: This is MASS median diameter)
-                wetNumberMedianDiameter(i,k,m) = 2.0_r8 * SUM(wetrad_tmp(1:tracerCounter))/dble(tracerCounter)
+                wetNumberMedianDiameter(icol,ilev,imode) = 2.0_r8 * SUM(wetrad_tmp(1:tracerCounter))/dble(tracerCounter)
 
                 !Take average density
                 mixed_dry_rho = SUM(dry_rhopart_tmp(1:tracerCounter))/dble(tracerCounter)
 
                 !At this point the radius is in "mass mean" space
-                volumeFractionAerosol = MIN(1.0_r8, ( 2.0_r8*rmeanVol / wetNumberMedianDiameter(i,k,m) )**3)
+                volumeFractionAerosol = MIN(1.0_r8, ( 2.0_r8*rmeanVol / wetNumberMedianDiameter(icol,ilev,imode) )**3)
 
                 !wet density
-                wetrho(i,k,m) = mixed_dry_rho * volumeFractionAerosol   &
-                     + (1._r8-volumeFractionAerosol)*rhoh2o
+                wetrho(icol,ilev,imode) = mixed_dry_rho * volumeFractionAerosol + (1._r8-volumeFractionAerosol)*rhoh2o
 
                 !convert back to number median diameter (wet)
-                wetNumberMedianDiameter(i,k,m) = wetNumberMedianDiameter(i,k,m)*DEXP(-1.5_r8*(log(lifeCycleSigma(m)))**2)
+                wetNumberMedianDiameter(icol,ilev,imode) = &
+                     wetNumberMedianDiameter(icol,ilev,imode)*DEXP(-1.5_r8*(log(lifeCycleSigma(imode)))**2)
              endif
-
 
           end do     !modes
 
           !Same thing for the process modes
-          do l=1,numberOfProcessModeTracers
+          do itrac = 1,numberOfProcessModeTracers
 
-             mm = tracerInProcessMode(l)   !process mode tracer (physics space)
+             mm = tracerInProcessMode(itrac)   !process mode tracer (physics space)
 
              !weighting by 1.5 is number median ==> volumetric mean
              !http://dust.ess.uci.edu/facts/psd/psd.pdf
-             rmeanvol = processModeNumberMedianRadius(l)*DEXP(1.5_r8*(log(processModeSigma(l)))**2)
+             rmeanvol = processModeNumberMedianRadius(itrac)*DEXP(1.5_r8*(log(processModeSigma(itrac)))**2)
 
              !radius of lower rh-bin for this tracer
              rr1=rdivr0(t_irh1,mm)
@@ -907,20 +982,20 @@ contains
              rr2=rdivr0(t_irh2,mm)
 
              !Note this is MASS median diameter
-             wetNumberMedianDiameter_processmode(i,k,l) = (((t_rh2-t_xrh)*rr1+(t_xrh-t_rh1)*rr2)/ &
+             wetNumberMedianDiameter_processmode(icol,ilev,itrac) = (((t_rh2-t_xrh)*rr1+(t_xrh-t_rh1)*rr2)/ &
                   (t_rh2-t_rh1))*rmeanvol*2.0_r8
 
-             volumeFractionAerosol = MIN(1.0, (2.0_r8*rmeanVol/wetnumberMedianDiameter_processmode(i,k,l))**3)
+             volumeFractionAerosol = MIN(1.0, (2.0_r8*rmeanVol/wetnumberMedianDiameter_processmode(icol,ilev,itrac))**3)
 
-             wetrho_processmode(i,k,l) = volumeFractionAerosol*rhopart(mm) &
+             wetrho_processmode(icol,ilev,itrac) = volumeFractionAerosol*rhopart(mm) &
                   + (1.0_r8 - volumeFractionAerosol)*rhoh2o
 
              !convert back to number median diameter (wet)
-             wetNumberMedianDiameter_processMode(i,k,l) = &
-                  wetNumberMedianDiameter_processMode(i,k,l)*DEXP(-1.5_r8*(log(processModeSigma(l)))**2)
-          end do     !process modes
-       end do        !horizontal points
-    end do           !layers
+             wetNumberMedianDiameter_processMode(icol,ilev,itrac) = &
+                  wetNumberMedianDiameter_processMode(icol,ilev,itrac)*DEXP(-1.5_r8*(log(processModeSigma(itrac)))**2)
+          end do !process modes
+       end do !horizontal points
+    end do !layers
 
   end subroutine calcaersize_sub
 

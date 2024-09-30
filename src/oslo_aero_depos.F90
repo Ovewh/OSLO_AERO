@@ -126,7 +126,7 @@ contains
       close(unitn)
    end if
 
-   call mpi_bcast(f_act_conv_coarse_dust,1, mpi_real8,mpicom, ierr)
+   call mpi_bcast(f_act_conv_coarse_dust,1, mpi_real8,mstrid,mpicom, ierr)
    if (ierr /= mpi_success) call endrun(subname // ': mpi_bcast f_act_conv_coarse_dust')
 
    if (f_act_conv_coarse_dust == huge(1.0_r8)) call endrun(subname // ': ERROR f_act_conv_coarse_dust not set in namelist')

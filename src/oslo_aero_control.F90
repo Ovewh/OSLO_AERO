@@ -23,8 +23,11 @@ module oslo_aero_control
   integer,           parameter :: unset_int = huge(1)
   integer, parameter, public   :: dir_string_length=256
 
-  ! Namelist variables:
-  real(r8)  :: volc_fraction_coarse = 0.0_r8  !Fraction of volcanic aerosols in coarse mode
+  ! Public Namelist variables:
+  logical, public, protected :: use_aerocom = .false. ! If true, turn on aerocom output
+
+  ! Private Namelist variables:
+  real(r8)          :: volc_fraction_coarse = 0.0_r8  !Fraction of volcanic aerosols in coarse mode
   character(len=dir_string_length) :: aerotab_table_dir = unset_str
 
   ! DMS/Ocean namelist variables
@@ -53,7 +56,8 @@ contains
 
     namelist /oslo_ctl_nl/ volc_fraction_coarse, aerotab_table_dir, dms_source, &
                            dms_source_type, opom_source, opom_source_type, &
-                           ocean_filename, ocean_filepath, dms_cycle_year, opom_cycle_year
+                           ocean_filename, ocean_filepath, dms_cycle_year, opom_cycle_year, &
+                           use_aerocom
     !-----------------------------------------------------------------------------
 
     if (masterproc) then
@@ -69,6 +73,9 @@ contains
     end if
 
     ! Broadcast namelist variables
+    call mpi_bcast(use_aerocom, 1 , mpi_logical, mstrid, mpicom, ierr)
+    if (ierr /= mpi_success) call endrun(subname//" mpi_bcast: volc_fraction_coarse")
+
     call mpi_bcast(volc_fraction_coarse, 1 , mpi_real8, mstrid, mpicom, ierr)
     if (ierr /= mpi_success) call endrun(subname//" mpi_bcast: volc_fraction_coarse")
     call mpi_bcast(aerotab_table_dir, len(aerotab_table_dir) , mpi_character, mstrid, mpicom, ierr)
@@ -80,7 +87,7 @@ contains
     call mpi_bcast(dms_source_type, len(dms_source_type), mpi_character, mstrid, mpicom, ierr)
     if (ierr /= mpi_success) call endrun(subname//" mpi_bcast: dms_source_type")
     call mpi_bcast(dms_cycle_year, 1, mpi_integer, mstrid, mpicom, ierr)
-    if (ierr /= mpi_success) call endrun(subname//" mpi_bcast: dms_cycle_type")
+    if (ierr /= mpi_success) call endrun(subname//" mpi_bcast: dms_cycle_year")
 
     ! opom variables
     call mpi_bcast(opom_source, len(opom_source), mpi_character, mstrid, mpicom, ierr)
@@ -107,8 +114,15 @@ contains
 
     if (masterproc) then
        write(iulog,*)"Reading aerosol tables from : " // trim(aerotab_table_dir)
-    endif
-
+      
+   endif
+   if (masterproc) then
+      if (use_aerocom) then
+         write(iulog,*)"Aerocom diagnostics are enabled? : true" 
+      else
+         write(iulog,*)"Aerocom diagnostics are enabled? : false"
+      end if
+   end if
     ! Error check for OCEAN file
     inquire( file=trim(ocean_filepath)//'/'//trim(ocean_filename), exist=fileExists )
     if(.not. fileExists)then
