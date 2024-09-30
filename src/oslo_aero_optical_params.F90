@@ -28,13 +28,33 @@ module oslo_aero_optical_params
    private :: inputForInterpol
 
    ! namelist variables for the OsloAero optical parameters
-   real(r8), public, protected :: dst_ssa_scale = -1.0_r8
+   real(r8), public, protected :: dst_ssa_scale = 0.0_r8
 !===============================================================================
 contains
 !===============================================================================
    subroutine oslo_aero_optical_params_readnl
-      use spmd_utils,          only: mpicom, mstrid=>masterprocid, masterproc
-      use spmd_utils,          only: mpi_logical, mpi_real8, mpi_character, mpi_integer,  mpi_success
+     use spmd_utils,          only: mpicom, mstrid=>masterprocid, masterproc
+     use spmd_utils,          only: mpi_logical, mpi_real8, mpi_character, mpi_integer,  mpi_success
+
+     character(len=*) :: nlfile
+     integer :: unitn, ierr
+     character(len=*), parameter :: subname = 'oslo_aero_optical_params_readnl'
+     namelist /oslo_aero_optical_params_nl/ dst_ssa_scale
+
+     if (masterproc) then
+      open(newunit=unitn, file=trim(nlfile), status='old',  iostat=ierr)
+      call find_group_name(unitn, 'oslo_aero_optical_params_nl', status=ierr)
+      if (ierr == 0) then
+         read(unitn, 'oslo_optical_params_nl' iostat=ierr)
+         if (err /= 0) then
+            call endrun(subname // ': Error reading namelist')
+         end if
+      end if
+      close(unitn)
+     end if
+
+     call mpi_bcast(dst_ssa_scale, 1, mpi_real8, mstrid,mpicom, ierr)
+     if (ierr /= mpi_success) call endrun(subname // ': Error broadcasting namelist')
 
    end subroutine oslo_aero_optical_params_readnl
 
@@ -320,8 +340,8 @@ contains
          enddo
       enddo
       ! Scale dust ssa for ppe setup
-      if ( dst_ssa_scale  .ge. 0 ) then
-         ssa(:,:,6:7,:) = ssa(:,:,6:7,:)*dst_ssa_scale
+      if ( dst_ssa_scale /= 0.0_r8 ) then
+        ssa(:,:,6:7,:) = ssa(:,:,6:7,:) *  dst_ssa_scale
       end if
       ! SW Optical properties of total aerosol:
       do ib=1,nbands
