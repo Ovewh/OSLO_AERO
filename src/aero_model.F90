@@ -43,6 +43,9 @@ module aero_model
   use oslo_aero_share,          only: lifeCycleNumberMedianRadius, rhopart, lifeCycleSigma
   use oslo_aero_share,          only: l_so4_a2, l_bc_n, l_bc_ax
   use oslo_aero_share,          only: MODE_IDX_BC_NUC, MODE_IDX_BC_EXT_AC
+  !smb++
+  use oslo_aero_share,          only: oslo_aero_share_readnl
+  !smb--
   use oslo_aero_control,        only: oslo_aero_ctl_readnl, use_aerocom
   use oslo_aero_depos,          only: oslo_aero_depos_init, oslo_aero_depos_readnl
   use oslo_aero_depos,          only: oslo_aero_depos_dry, oslo_aero_depos_wet, oslo_aero_wetdep_init
@@ -129,7 +132,9 @@ contains
     call oslo_aero_ctl_readnl(nlfilename)
     call oslo_aero_microp_readnl(nlfilename)
     call oslo_aero_depos_readnl(nlfilename)
-
+    !smb++
+    call oslo_aero_share_readnl(nlfilename)
+    !smb --
   end subroutine aero_model_readnl
 
   !=============================================================================
