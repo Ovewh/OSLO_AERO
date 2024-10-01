@@ -4,6 +4,8 @@ module oslo_aero_optical_params
    ! from the tables kcomp1.out-kcomp14.out.
 
    use shr_kind_mod,        only: r8 => shr_kind_r8
+   use cam_abortutils,      only: endrun
+   use cam_logfile,         only: iulog
    use ppgrid,              only: pcols, pver, pverp
    use constituents,        only: pcnst
    use cam_history,         only: outfld
@@ -18,6 +20,7 @@ module oslo_aero_optical_params
    use oslo_aero_conc,      only: calculateBulkProperties, partitionMass
    use oslo_aero_sw_tables, only: interpol0, interpol1, interpol2to3, interpol4, interpol5to10
    use oslo_aero_aerocom,   only: aerocom1, aerocom2
+   use namelist_utils,      only: find_group_name
 
    implicit none
    private
@@ -28,7 +31,7 @@ module oslo_aero_optical_params
    private :: inputForInterpol
 
    ! namelist variables for the OsloAero optical parameters
-   logical,  protected :: pertube_optical_params_on = .false.
+   logical,  protected :: perturbe_optical_params_on = .false.
    real(r8), dimension(nmodes), public, protected :: ssa_scale_facts = 1.0_r8
    real(r8), dimension(nmodes), public, protected :: asym_scale_facts = 1.0_r8
    real(r8), dimension(nmodes), public, protected :: be_scale_facts = 1.0_r8
@@ -36,24 +39,24 @@ module oslo_aero_optical_params
 !===============================================================================
 contains
 !===============================================================================
-   subroutine oslo_aero_optical_params_readnl
+   subroutine oslo_aero_optical_params_readnl(nlfile)
      use spmd_utils,          only: mpicom, mstrid=>masterprocid, masterproc
      use spmd_utils,          only: mpi_logical, mpi_real8, mpi_character, mpi_integer,  mpi_success
 
-     character(len=*) :: nlfile
+     character(len=*), intent(in) :: nlfile
      integer :: unitn, ierr
      character(len=*), parameter :: subname = 'oslo_aero_optical_params_readnl'
      real(r8) :: dst_ssa_scale = 1.0_r8
      real(r8) :: dst_be_scale = 1.0_r8
      real(r8) :: dst_ke_scale = 1.0_r8
-     namelist /oslo_aero_optical_params_nl /pertube_optical_params_on, dst_ssa_scale, dst_be_scale, dst_ke_scale
+     namelist /oslo_aero_optical_params_nl/ perturbe_optical_params_on, dst_ssa_scale, dst_be_scale, dst_ke_scale
 
      if (masterproc) then
-      open(newunit=unitn, file=trim(nlfile), status='old',  iostat=ierr)
+      open(newunit=unitn, file=trim(nlfile), status='old' )
       call find_group_name(unitn, 'oslo_aero_optical_params_nl', status=ierr)
       if (ierr == 0) then
-         read(unitn, 'oslo_optical_params_nl' iostat=ierr)
-         if (err /= 0) then
+         read(unitn, oslo_aero_optical_params_nl, iostat=ierr)
+         if (ierr /= 0) then
             call endrun(subname // ': Error reading namelist')
          end if
       end if
@@ -63,7 +66,7 @@ contains
      end if
 
      if (masterproc) then
-         write(iulog, *) 'oslo_aero_optical_params_readnl: pertube_optical_params_on = ', pertube_optical_params_on
+         write(iulog, *) 'oslo_aero_optical_params_readnl: perturbe_optical_params_on = ', perturbe_optical_params_on
          write(iulog, *) 'oslo_aero_optical_params_readnl: dst_ssa_scale = ', dst_ssa_scale
          write(iulog, *) 'oslo_aero_optical_params_readnl: dst_be_scale = ', dst_be_scale
          write(iulog, *) 'oslo_aero_optical_params_readnl: dst_ke_scale = ', dst_ke_scale
@@ -71,7 +74,7 @@ contains
 
      call mpi_bcast(dst_ssa_scale, 1, mpi_real8, mstrid,mpicom, ierr)
      if (ierr /= mpi_success) call endrun(subname // ': Error broadcasting namelist')
-     call mpi_bcast(pertube_optical_params_on, 1, mpi_logical, mstrid,mpicom, ierr)
+     call mpi_bcast(perturbe_optical_params_on, 1, mpi_logical, mstrid,mpicom, ierr)
      if (ierr /= mpi_success) call endrun(subname // ': Error broadcasting namelist')
      call mpi_bcast(dst_be_scale, 1, mpi_real8, mstrid,mpicom, ierr)
      if (ierr /= mpi_success) call endrun(subname // ': Error broadcasting namelist')
@@ -361,10 +364,10 @@ contains
            xfac, ifac1, xfaq, ifaq1, ssa, asym, be, ke, lw_on, kalw)
 
       if (perturbe_optical_params_on) then
-         do nm=0,nmodes
-            ssa(:,:,:,nm) = ssa(:,:,:,nm)*ssa_scale_facts(nm)
-            be(:,:,:,nm) = be(:,:,:,nm)*be_scale_facts(nm)
-            ke(:,:,:,nm) = ke(:,:,:,nm)*ke_scale_facts(nm)
+         do i=0,nmodes
+            ssa(:,:,:,i) = ssa(:,:,:,i)*ssa_scale_facts(i)
+            be(:,:,:,i) = be(:,:,:,i)*be_scale_facts(i)
+            ke(:,:,:,i) = ke(:,:,:,i)*ke_scale_facts(i)
          enddo
       endif
 
