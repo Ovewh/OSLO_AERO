@@ -44,7 +44,7 @@ module radiation
   use cam_logfile,         only: iulog
   ! OSLO_AERO begin
   use prescribed_volcaero,      only: has_prescribed_volcaero, has_prescribed_volcaero_cmip6, solar_bands, terrestrial_bands
-  use oslo_aero_optical_params, only: oslo_aero_optical_params_calc
+  use oslo_aero_optical_params, only: oslo_aero_optical_params_calc, oslo_aero_optical_params_readnl
   use oslo_aero_share,          only: nmodes_oslo=>nmodes, nbmodes
 #ifdef AEROCOM
   use oslo_aero_aerocom,        only: dod440,dod550,dod870,abs550,abs550alt
@@ -226,6 +226,7 @@ contains
          '  Use average zenith angle:                           ',l5/, &
          '  Output spectrally resolved fluxes:                  ',l5/)
 
+    call oslo_aero_optical_params_readnl(nlfile)
   end subroutine radiation_readnl
 
   !================================================================================================

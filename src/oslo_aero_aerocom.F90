@@ -275,7 +275,7 @@ contains
 
   subroutine aerocom2(lchnk, ncol, Nnatk, pint, deltah_km, faitbc, f_soana, fnbc, rhoda, v_soana, &
        xct, ict1, xfac, ifac1, xfbc, ifbc1, xfaq, ifaq1, xfbcbg, ifbcbg1, xfbcbgn, ifbcbgn1, &
-       xfombg, ifombg1, xrh, irh1)
+       xfombg, ifombg1, xrh, irh1, ssa_scale_facts,be_scale_facts,perturbe_optical_params_on)
 
     ! Arguments
     integer , intent(in) :: lchnk                        ! chunk identifier
@@ -304,6 +304,10 @@ contains
     integer , intent(in) :: ifombg1(pcols,pver)
     real(r8), intent(in) :: xrh(pcols,pver)
     integer , intent(in) :: irh1(pcols,pver)
+
+    logical, intent(in) :: perturbe_optical_params_on
+    real(r8), intent(in) :: ssa_scale_facts(nmodes)
+    real(r8), intent(in) :: be_scale_facts(nmodes)
 
     ! local variables
     integer  :: ilev, icol, imode
@@ -652,64 +656,73 @@ contains
          beoclt1n, beocgt1n, bes4lt1n, bes4gt1n,           &
          backsc550n, babg550n, babc550n, baoc550n, basu550n)
 
-    do ilev=1,pver
-       do icol=1,ncol
-          bebglt1t(icol,ilev)  =0.0_r8
-          bebggt1t(icol,ilev)  =0.0_r8
-          bebclt1t(icol,ilev)  =0.0_r8
-          bebcgt1t(icol,ilev)  =0.0_r8
-          beoclt1t(icol,ilev)  =0.0_r8
-          beocgt1t(icol,ilev)  =0.0_r8
-          bes4lt1t(icol,ilev)  =0.0_r8
-          bes4gt1t(icol,ilev)  =0.0_r8
-          bedustlt1(icol,ilev) =0.0_r8
-          bedustgt1(icol,ilev) =0.0_r8
-          besslt1(icol,ilev)   =0.0_r8
-          bessgt1(icol,ilev)   =0.0_r8
+    bebglt1t(:,:)  = 0.0_r8
+    bebggt1t(:,:)  = 0.0_r8
+    bebclt1t(:,:)  = 0.0_r8
+    bebcgt1t(:,:)  = 0.0_r8
+    beoclt1t(:,:)  = 0.0_r8
+    beocgt1t(:,:)  = 0.0_r8
+    bes4lt1t(:,:)  = 0.0_r8
+    bes4gt1t(:,:)  = 0.0_r8
+    bedustlt1(:,:) = 0.0_r8
+    bedustgt1(:,:) = 0.0_r8
+    besslt1(:,:)   = 0.0_r8
+    bessgt1(:,:)   = 0.0_r8
 
-          bext440tot(icol,ilev)=0.0_r8
-          babs440tot(icol,ilev)=0.0_r8
-          bext500tot(icol,ilev)=0.0_r8
-          babs500tot(icol,ilev)=0.0_r8
-          bext550tot(icol,ilev)=0.0_r8
-          babs550tot(icol,ilev)=0.0_r8
-          bext670tot(icol,ilev)=0.0_r8
-          babs670tot(icol,ilev)=0.0_r8
-          bext870tot(icol,ilev)=0.0_r8
-          babs870tot(icol,ilev)=0.0_r8
+    bext440tot(:,:) = 0.0_r8
+    babs440tot(:,:) = 0.0_r8
+    bext500tot(:,:) = 0.0_r8
+    babs500tot(:,:) = 0.0_r8
+    bext550tot(:,:) = 0.0_r8
+    babs550tot(:,:) = 0.0_r8
+    bext670tot(:,:) = 0.0_r8
+    babs670tot(:,:) = 0.0_r8
+    bext870tot(:,:) = 0.0_r8
+    babs870tot(:,:) = 0.0_r8
+    
+    backsc550tot(:,:) = 0.0_r8
 
-          backsc550tot(icol,ilev)=0.0_r8
+    bebg440tot(:,:) = 0.0_r8
+    bebg500tot(:,:) = 0.0_r8
+    bebg550tot(:,:) = 0.0_r8
+    babg550tot(:,:) = 0.0_r8
+    bebg670tot(:,:) = 0.0_r8
+    bebg870tot(:,:) = 0.0_r8
 
-          bebg440tot(icol,ilev)=0.0_r8
-          bebg500tot(icol,ilev)=0.0_r8
-          bebg550tot(icol,ilev)=0.0_r8
-          babg550tot(icol,ilev)=0.0_r8
-          bebg670tot(icol,ilev)=0.0_r8
-          bebg870tot(icol,ilev)=0.0_r8
+    bebc440tot(:,:) = 0.0_r8
+    bebc500tot(:,:) = 0.0_r8
+    bebc550tot(:,:) = 0.0_r8
+    babc550tot(:,:) = 0.0_r8
+    bebc670tot(:,:) = 0.0_r8
+    bebc870tot(:,:) = 0.0_r8
 
-          bebc440tot(icol,ilev)=0.0_r8
-          bebc500tot(icol,ilev)=0.0_r8
-          bebc550tot(icol,ilev)=0.0_r8
-          babc550tot(icol,ilev)=0.0_r8
-          bebc670tot(icol,ilev)=0.0_r8
-          bebc870tot(icol,ilev)=0.0_r8
+    beoc440tot(:,:) = 0.0_r8
+    beoc500tot(:,:) = 0.0_r8
+    beoc550tot(:,:) = 0.0_r8
+    baoc550tot(:,:) = 0.0_r8
+    beoc670tot(:,:) = 0.0_r8
+    beoc870tot(:,:) = 0.0_r8
 
-          beoc440tot(icol,ilev)=0.0_r8
-          beoc500tot(icol,ilev)=0.0_r8
-          beoc550tot(icol,ilev)=0.0_r8
-          baoc550tot(icol,ilev)=0.0_r8
-          beoc670tot(icol,ilev)=0.0_r8
-          beoc870tot(icol,ilev)=0.0_r8
+    besu440tot(:,:) = 0.0_r8
+    besu500tot(:,:) = 0.0_r8
+    besu550tot(:,:) = 0.0_r8
+    basu550tot(:,:) = 0.0_r8
+    besu670tot(:,:) = 0.0_r8
+    besu870tot(:,:) = 0.0_r8
 
-          besu440tot(icol,ilev)=0.0_r8
-          besu500tot(icol,ilev)=0.0_r8
-          besu550tot(icol,ilev)=0.0_r8
-          basu550tot(icol,ilev)=0.0_r8
-          besu670tot(icol,ilev)=0.0_r8
-          besu870tot(icol,ilev)=0.0_r8
+    if (perturbe_optical_params_on) then
+       do imode=0, nbmodes
+          bebg440(:,:,imode) = bebg440(:,:,imode)*be_scale_facts(nm) 
+          bebg500(:,:,imode) = bebg500(:,:,imode)*be_scale_facts(nm) 
+          bebg550(:,:,imode) = bebg550(:,:,imode)*be_scale_facts(nm) 
+          bebg670(:,:,imode) = bebg670(:,:,imode)*be_scale_facts(nm) 
+          bebg870(:,:,imode) = bebg870(:,:,imode)*be_scale_facts(nm)
+          bebglt1(:,:,imode) = bebglt1(:,:,imode)*be_scale_facts(nm)
+          bebggt1(:,:,imode) = bebggt1(:,:,imode)*be_scale_facts(nm)
+          babs550(:,:,imode) = babs550(:,:,imode)*ssa_scale_facts(nm)
+          babg550(:,:,imode) = babg550(:,:,imode)*ssa_scale_facts(nm)
        enddo
-    enddo
-
+     endif    
     do imode=0,nbmodes
        do ilev=1,pver
           do icol=1,ncol
@@ -1920,6 +1933,8 @@ contains
     end do
 
     ! Calculation of extinction at given RH and absorption for all r and for r<0.5um
+
+
     do ilev=1,pver
        do icol=1,ncol
 

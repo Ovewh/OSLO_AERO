@@ -28,7 +28,11 @@ module oslo_aero_optical_params
    private :: inputForInterpol
 
    ! namelist variables for the OsloAero optical parameters
-   real(r8), public, protected :: dst_ssa_scale = 0.0_r8
+   logical,  protected :: pertube_optical_params_on = .false.
+   real(r8), dimension(nmodes), public, protected :: ssa_scale_facts = 1.0_r8
+   real(r8), dimension(nmodes), public, protected :: asym_scale_facts = 1.0_r8
+   real(r8), dimension(nmodes), public, protected :: be_scale_facts = 1.0_r8
+   real(r8), dimension(nmodes), public, protected :: ke_scale_facts = 1.0_r8
 !===============================================================================
 contains
 !===============================================================================
@@ -39,7 +43,10 @@ contains
      character(len=*) :: nlfile
      integer :: unitn, ierr
      character(len=*), parameter :: subname = 'oslo_aero_optical_params_readnl'
-     namelist /oslo_aero_optical_params_nl/ dst_ssa_scale
+     real(r8) :: dst_ssa_scale = 1.0_r8
+     real(r8) :: dst_be_scale = 1.0_r8
+     real(r8) :: dst_ke_scale = 1.0_r8
+     namelist /oslo_aero_optical_params_nl /pertube_optical_params_on, dst_ssa_scale, dst_be_scale, dst_ke_scale
 
      if (masterproc) then
       open(newunit=unitn, file=trim(nlfile), status='old',  iostat=ierr)
@@ -51,10 +58,34 @@ contains
          end if
       end if
       close(unitn)
+
+     
+     end if
+
+     if (masterproc) then
+         write(iulog, *) 'oslo_aero_optical_params_readnl: pertube_optical_params_on = ', pertube_optical_params_on
+         write(iulog, *) 'oslo_aero_optical_params_readnl: dst_ssa_scale = ', dst_ssa_scale
+         write(iulog, *) 'oslo_aero_optical_params_readnl: dst_be_scale = ', dst_be_scale
+         write(iulog, *) 'oslo_aero_optical_params_readnl: dst_ke_scale = ', dst_ke_scale
      end if
 
      call mpi_bcast(dst_ssa_scale, 1, mpi_real8, mstrid,mpicom, ierr)
      if (ierr /= mpi_success) call endrun(subname // ': Error broadcasting namelist')
+     call mpi_bcast(pertube_optical_params_on, 1, mpi_logical, mstrid,mpicom, ierr)
+     if (ierr /= mpi_success) call endrun(subname // ': Error broadcasting namelist')
+     call mpi_bcast(dst_be_scale, 1, mpi_real8, mstrid,mpicom, ierr)
+     if (ierr /= mpi_success) call endrun(subname // ': Error broadcasting namelist')
+     call mpi_bcast(be_scale_facts, 1, mpi_real8, mstrid,mpicom, ierr)
+     if (ierr /= mpi_success) call endrun(subname // ': Error broadcasting namelist')
+     call mpi_bcast(dst_ke_scale, 1, mpi_real8, mstrid,mpicom, ierr)
+     if (ierr /= mpi_success) call endrun(subname // ': Error broadcasting namelist')
+     ssa_scale_facts(6:7) = dst_ssa_scale
+     be_scale_facts(6:7) = dst_be_scale
+     ke_scale_facts(6:7) = dst_ke_scale
+
+     call mpi_bcast(ssa_scale_facts, nmodes, mpi_real8, mstrid,mpicom, ierr)
+     call mpi_bcast(be_scale_facts, nmodes, mpi_real8, mstrid,mpicom, ierr)
+     call mpi_bcast(ke_scale_facts, nmodes, mpi_real8, mstrid,mpicom, ierr)
 
    end subroutine oslo_aero_optical_params_readnl
 
@@ -329,6 +360,15 @@ contains
            Nnatk, xfbcbgn, ifbcbgn1, xct, ict1,  &
            xfac, ifac1, xfaq, ifaq1, ssa, asym, be, ke, lw_on, kalw)
 
+      if (perturbe_optical_params_on) then
+         do nm=0,nmodes
+            ssa(:,:,:,nm) = ssa(:,:,:,nm)*ssa_scale_facts(nm)
+            be(:,:,:,nm) = be(:,:,:,nm)*be_scale_facts(nm)
+            ke(:,:,:,nm) = ke(:,:,:,nm)*ke_scale_facts(nm)
+         enddo
+      endif
+
+         
       ! Determine Ctot
       Ctot(:,:) = 0.0_r8
       do i=0,nmodes    ! mode 0 to 14
@@ -339,10 +379,6 @@ contains
             end do
          enddo
       enddo
-      ! Scale dust ssa for ppe setup
-      if ( dst_ssa_scale /= 0.0_r8 ) then
-        ssa(:,:,6:7,:) = ssa(:,:,6:7,:) *  dst_ssa_scale
-      end if
       ! SW Optical properties of total aerosol:
       do ib=1,nbands
          do k=1,pver
@@ -359,14 +395,13 @@ contains
                do icol=1,ncol
                   betot(icol,k,ib) = betot(icol,k,ib)+Nnatk(icol,k,i)*be(icol,k,i,ib)
                   ssatot(icol,k,ib) = ssatot(icol,k,ib)+Nnatk(icol,k,i) &
-                       *be(icol,k,i,ib)*ssa(icol,k,i,ib)
+                     *be(icol,k,i,ib)*ssa(icol,k,i,ib)
                   asymtot(icol,k,ib) = asymtot(icol,k,ib)+Nnatk(icol,k,i) &
-                       *be(icol,k,i,ib)*ssa(icol,k,i,ib)*asym(icol,k,i,ib)
+                     *be(icol,k,i,ib)*ssa(icol,k,i,ib)*asym(icol,k,i,ib)
                end do
             enddo
          enddo
       enddo
-
       ! Adding also the volcanic contribution (CMIP6), which is using a CMIP6
       ! band numbering identical to the AeroTab numbering (unlike CAM) both
       ! for SW and LW. I.e., no remapping is required here.
@@ -603,7 +638,7 @@ contains
       ! Aerocom second phase
       call aerocom2(lchnk, ncol, Nnatk, pint, deltah_km, faitbc, f_soana, fnbc, rhoda, v_soana, &
            xct, ict1, xfac, ifac1, xfbc, ifbc1, xfaq, ifaq1, xfbcbg, ifbcbg1, xfbcbgn, ifbcbgn1, &
-           xfombg, ifombg1, xrh, irh1)
+           xfombg, ifombg1, xrh, irh1,ssa_scale_facts, be_scale_facts, perturbe_optical_params_on)
 #endif
 
    end subroutine oslo_aero_optical_params_calc
