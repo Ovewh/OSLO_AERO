@@ -124,12 +124,12 @@ contains
 
    ! Namelist variables
    real :: oslo_aero_f_act_conv_interstitial = unset_r8 ! prescribed lifecycle of modes
-   real :: oslo_aero_sol_f_act_conv_coarse_dust = unset_r8 
+   real :: oslo_aero_f_act_conv_coarse_dust = unset_r8 
 
    integer :: unitn, ierr
    character(len=*), parameter :: subname='oslo_aero_depos_readnl'
    
-   namelist /oslo_aero_depos_nl/ oslo_aero_sol_f_act_conv_coarse_dust, oslo_aero_f_act_conv_interstitial
+   namelist /oslo_aero_depos_nl/ oslo_aero_f_act_conv_coarse_dust, oslo_aero_f_act_conv_interstitial
    !-----------------------------------------------------------------------
    
    if (masterproc) then
