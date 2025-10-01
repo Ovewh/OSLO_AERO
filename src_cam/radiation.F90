@@ -47,7 +47,7 @@ module radiation
   use oslo_aero_optical_params, only: oslo_aero_optical_params_calc
   use oslo_aero_share,          only: nmodes_oslo=>nmodes, nbmodes
 #ifdef AEROCOM
-  use oslo_aero_aerocom,        only: dod440,dod550,dod870,abs550,abs550alt
+  use oslo_aero_aerocom,        only: dod440,dod550,dod870,abs550,abs550alt,dod550_dust
 #endif
   ! OSLO_AERO end
 
@@ -848,6 +848,7 @@ contains
     real(r8) :: absvis(pcols)              ! absorptive AOD vis
     real(r8) :: clearodvis(pcols), clearabsvis(pcols), cloudfree(pcols), cloudfreemax(pcols)
     real(r8) :: clearod440(pcols),clearod550(pcols),clearod870(pcols),clearabs550(pcols),clearabs550alt(pcols)
+    real(r8) :: clearod550du(pcols)
     real(r8) :: ftem_1d(pcols)                        ! work-array to avoid NAN and pcols/ncol confusion
     real(r8) :: per_tau    (pcols,0:pver,nswbands)    ! aerosol extinction optical depth
     real(r8) :: per_tau_w  (pcols,0:pver,nswbands)    ! aerosol single scattering albedo * tau
@@ -1299,12 +1300,14 @@ contains
           clearod440(i)     =cloudfree(i)*dod440(i)
           clearod550(i)     =cloudfree(i)*dod550(i)
           clearod870(i)     =cloudfree(i)*dod870(i)
+          clearod550du(i)   =cloudfree(i)*dod550_dust(i)
           clearabs550(i)    =cloudfree(i)*abs550(i)
           clearabs550alt(i) =cloudfree(i)*abs550alt(i)
        end do
        call outfld('CDOD440 ',clearod440  ,pcols,lchnk)
        call outfld('CDOD550 ',clearod550  ,pcols,lchnk)
        call outfld('CDOD870 ',clearod870  ,pcols,lchnk)
+       call outfld('CD550_DU',clearod550du,pcols,lchnk)
        call outfld('CABS550 ',clearabs550  ,pcols,lchnk)
        call outfld('CABS550A',clearabs550alt,pcols,lchnk)
 #endif

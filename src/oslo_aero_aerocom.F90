@@ -23,6 +23,7 @@ module oslo_aero_aerocom
   real(r8), public, protected :: dod870(pcols)
   real(r8), public, protected :: abs550(pcols)
   real(r8), public, protected :: abs550alt(pcols)
+  real(r8), public, protected :: dod550_dust(pcols)
 
 !===============================================================================
 contains
@@ -571,7 +572,7 @@ contains
     real(r8) :: dod500_ss(pcols), dod500_dust(pcols), dod500_so4(pcols)
     real(r8) :: dod500_bc(pcols), dod500_pom(pcols)
     !
-    real(r8) :: dod550_ss(pcols), dod550_dust(pcols), dod550_so4(pcols)
+    real(r8) :: dod550_ss(pcols), dod550_so4(pcols)
     real(r8) :: dod550_bc(pcols), dod550_pom(pcols)
     !
     real(r8) :: dod670_ss(pcols), dod670_dust(pcols), dod670_so4(pcols)
