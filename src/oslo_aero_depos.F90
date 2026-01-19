@@ -37,6 +37,7 @@ module oslo_aero_depos
   use oslo_aero_share,         only: l_bc_ax, l_bc_ni, l_bc_ai, l_bc_a, l_bc_ac
   use oslo_aero_share,         only: l_bc_n, l_om_ni, l_om_ai, l_om_ac, l_dst_a2, l_dst_a3
   use oslo_aero_share,         only: l_ss_a2, l_ss_a3, l_so4_a2
+  use oslo_aero_share,         only: sol_factb_interstitial, sol_factic_interstitial, sol_facti_cloud_borne 
   use oslo_aero_dust_sediment, only: oslo_aero_dust_sediment_tend, oslo_aero_dust_sediment_vel
 
   implicit none
@@ -61,10 +62,11 @@ module oslo_aero_depos
   private :: clddiag     ! calc of cloudy volume and rain mixing ratio
 
   real(r8), public :: sol_facti_cloud_borne
-
+  real(r8), parameter, private :: unset_r8 = huge(1.0_r8)
   real(r8), parameter :: cmftau = 3600._r8
   real(r8), parameter :: molwta = 28.97_r8 ! molecular weight dry air gm/mole
-
+  real(r8), public, protected :: f_act_conv_coarse_dust = unset_r8
+  real(r8), public, protected :: f_act_conv_interstitial = .8_r8 
   type wetdep_inputs_t
      real(r8), pointer :: cldt(:,:)  => null()  ! cloud fraction
      real(r8), pointer :: qme(:,:)   => null()

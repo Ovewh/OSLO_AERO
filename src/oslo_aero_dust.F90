@@ -40,18 +40,18 @@ module oslo_aero_dust
    integer             :: tracerMap(numberOfDustModes) = (/-99, -99/) !index of dust tracers in the modes
 
    integer , parameter, public :: dust_nbin = numberOfDustModes
-
+   real(r8), parameter :: unset_r8 = huge(1.0_r8)
    !Related to soil erodibility
-   real(r8)          :: dust_emis_fact = -1.e36_r8        ! tuning parameter for dust emissions
-   character(len=cl) :: soil_erod_file = 'none' ! full pathname for soil erodibility dataset
+   real(r8),protected  :: dust_emis_fact = unset_r8        ! tuning parameter for dust emissions
+   character(len=cl)   :: soil_erod_file = 'none' ! full pathname for soil erodibility dataset
 
    real(r8), allocatable ::  soil_erodibility(:,:) ! soil erodibility factor
    real(r8)              :: soil_erod_fact         ! tuning parameter for dust emissions
 
    real(r8), parameter ::  d2r  = pi/180._r8                 ! radians to degrees
 
-   real(r8) :: emis_fact_in_coarse_mode = unset_r8  ! tuning parameter for distribution of dust emissions between modes
-   real(r8), public :: emis_fraction_in_mode(numberOfDustModes) 
+   real(r8), protected  :: emis_fact_in_coarse_mode = unset_r8  ! tuning parameter for distribution of dust emissions between modes
+   real(r8), public    :: emis_fraction_in_mode(numberOfDustModes) 
 
 !=============================================================================
 contains
@@ -68,7 +68,7 @@ contains
       integer                     :: unitn, ierr
       character(len=*), parameter :: subname = 'dust_readnl'
 
-      namelist /dust_nl/ dust_emis_fact, soil_erod_file,  emis_fact_in_coarse_mode  
+      namelist /dust_nl/ dust_emis_fact, soil_erod_file, emis_fact_in_coarse_mode  
       !---------------------------------------------------------------------------
 
       ! Read namelist
@@ -122,6 +122,7 @@ contains
             write(iulog, *) subname, ': dust_emis_fact = ', dust_emis_fact
          else
             write(iulog,*) subname,': Leung_2023 dust emission method is being used.'
+            write(iulog,*) subname,': dust_emis_fact = ', dust_emis_fact
          end if
          write(iulog,*) 'emis_fact_in_coarse_mode = ', emis_fact_in_coarse_mode
       end if

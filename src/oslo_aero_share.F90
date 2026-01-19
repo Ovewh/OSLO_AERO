@@ -12,8 +12,9 @@ module oslo_aero_share
   use cam_abortutils, only: endrun
   use physics_buffer, only: physics_buffer_desc, pbuf_get_field
   use physconst,      only: pi
-  use spmd_utils,             only: masterproc
-  use cam_logfile,            only: iulog
+  use spmd_utils,     only: mpi_logical, mpi_real8, mpi_character, mpi_integer,  mpi_success
+  use cam_logfile,    only: iulog
+  use spmd_utils,     only: masterproc
   !
   implicit none
   public          ! This is a public module with protected variables
@@ -314,12 +315,12 @@ module oslo_aero_share
 !===============================================================================
 contains
 !===============================================================================
-  subroutine oslo_aero_share_readnl
+  subroutine oslo_aero_share_readnl(nlfile)
 
     !-----------------------------------------------------------------------
     ! Read namelist variables
     !-----------------------------------------------------------------------
-        use namelist_utils, only: find_group_name
+    use namelist_utils, only: find_group_name
     use spmd_utils,     only: mpicom, mstrid=>masterprocid, mpi_real8
 
     character(len=*), intent(in) :: nlfile  ! filepath for file containing namelist input
@@ -378,8 +379,8 @@ contains
       write(iulog,*) 'sol_factb_interstitial = ', sol_factb_interstitial
       write(iulog,*) 'sol_factic_interstitial = ', sol_factic_interstitial
       do ind_mode=0,nmodes
-         WRITE(iulog,*) 'lifeCycleNumberMedianRadius(',ind_mode,') = ', lifeCycleNumberMedianRadius(ind_mode) ! add iulog
-         WRITE(iulog,*) 'lifeCycleSigma(',ind_mode,') = ', lifeCycleNumberMedianRadius(ind_mode) ! add iulog
+         write(iulog,*) 'lifeCycleNumberMedianRadius(',ind_mode,') = ', lifeCycleNumberMedianRadius(ind_mode) ! add iulog
+         write(iulog,*) 'lifeCycleSigma(',ind_mode,') = ', lifeCycleSigma(ind_mode) ! add iulog
       end do
     end if
     
