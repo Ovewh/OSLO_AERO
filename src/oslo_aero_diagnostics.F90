@@ -49,6 +49,7 @@ contains
       call addfld ('FSDSCDRF',horiz_only, 'A','W/m^2   ','SW downwelling clear sky flux at surface')
       call addfld ('FLUS    ',horiz_only, 'A','W/m^2   ','LW surface upwelling flux')
 
+      call addfld ('DOD10UM_DU', horiz_only, 'A','unitless','Dust aerosol optical depth at ~ 10um wavelength')
       if ( history_aerosol_base ) then
         call add_default ('AODVIS  ', 1, ' ')
         call add_default ('ABSVIS  ', 1, ' ')
@@ -227,7 +228,7 @@ contains
                call addfld(varName, horiz_only, 'A', 'unitless', 'relative exessive added mass column for mode'//trim(varname))
             end if
          enddo
-
+         call add_default ('DOD10UM_DU', 1, ' ')
          call add_default ('AKCXS   ', 1, ' ')
          call add_default ('PMTOT   ', 1, ' ')
          call add_default ('PM25    ', 1, ' ')
