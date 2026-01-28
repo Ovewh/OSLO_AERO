@@ -9,6 +9,7 @@ module mo_setsox
   private
   public :: sox_inti, setsox
   public :: has_sox
+  public :: oslo_aero_anions_scale_factor
 
   logical            ::  inv_o3
   integer            ::  id_msa
@@ -23,6 +24,7 @@ module mo_setsox
 
   ! Indices for species in the shared array of Henry's Law constant parameters
   integer :: heff_id_hno3, heff_id_so2, heff_id_nh3, heff_id_co2, heff_id_h2o2, heff_id_o3
+  real(r8) :: oslo_aero_anions_scale_factor = 0.0_r8
 
 contains
 
@@ -39,8 +41,6 @@ contains
     use carma_flags_mod,       only : carma_do_cloudborne
     ! OSLO_AERO begin
     use oslo_aero_sox_cldaero, only : sox_cldaero_init
-    ! OSLO_AERO_END
-
     logical :: modal_aerosols
 
     ! OSLO_AERO begin
@@ -292,6 +292,8 @@ contains
     real(r8) :: f_hso3 ! fraction of aqueous S(IV) that's HSO3-
     real(r8) :: f_so3  ! fraction of aqueous S(IV) that's SO3=
 
+    real(r8) :: anions_scale_factor
+
     real(r8) :: hno3g(ncol,pver), nh3g(ncol,pver)
     !
     !-----------------------------------------------------------------------
@@ -303,7 +305,7 @@ contains
     real(r8) :: ho2s   ! ho2s = ho2(a)+o2-
     real(r8) :: r1h2o2 ! prod(h2o2) by ho2 in mole/L(w)/s
     real(r8) :: r2h2o2 ! prod(h2o2) by ho2 in mix/s
-
+    
     real(r8), dimension(ncol,pver)  ::             &
          xhno3, xh2o2, xso2, xso4, xno3, xco2, &
          xnh3, xnh4, xo3,         &
@@ -371,7 +373,6 @@ contains
     xnh4(:,:) = 0._r8
 
     do k = 1,pver
-       xph(:,k) = xph0                                ! initial PH value
 
        xco2(:ncol,k) = co2_mass_mixing_ratio(:ncol,k) &
                    * (MOLECULAR_WEIGHT_DRY_AIR / MOLECULAR_WEIGHT_CO2)  ! mixing ratio
@@ -423,6 +424,8 @@ contains
     !-----------------------------------------------------------------
     !       ... Temperature dependent Henry constants
     !-----------------------------------------------------------------
+    anions_scale_factor = oslo_aero_anions_scale_factor
+    
     ver_loop0: do k = 1,pver                               !! pver loop for STEP 0
        col_loop0: do i = 1,ncol
 
@@ -624,7 +627,7 @@ contains
                 tmp_so4 = cldconc%so4_fact*Eso4
                 tmp_pos = xph(i,k) + tmp_nh4
                 tmp_neg = tmp_oh + tmp_hco3 + tmp_no3 + tmp_hso3 + tmp_so3 + tmp_so4
-
+                tmp_neg = tmp_neg + tmp_neg*anions_scale_factor
                 ynetpos = tmp_pos - tmp_neg
 
 

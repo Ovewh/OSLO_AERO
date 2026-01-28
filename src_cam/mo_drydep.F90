@@ -22,6 +22,7 @@ module mo_drydep
   use physconst,        only : karman
 
   use infnan,                only : nan, assignment(=)
+!   use chemistry,        only : oslo_aero_so2_develocity_scale
 
   implicit none
 
@@ -39,7 +40,7 @@ module mo_drydep
 
   public :: drydep_inti, drydep, has_drydep
   public :: drydep_update
-  public :: n_land_type, fraction_landuse, drydep_srf_file
+  public :: n_land_type, fraction_landuse, drydep_srf_file, oslo_aero_so2_develocity_scale
 
   integer :: pan_ndx, mpan_ndx, o3_ndx, ch4_ndx, co_ndx, h2_ndx, ch3cooh_ndx
   integer :: sogm_ndx, sogi_ndx, sogt_ndx, sogb_ndx, sogx_ndx
@@ -86,6 +87,7 @@ module mo_drydep
 
   type(lnd_dvel_type), allocatable :: lnd(:)
   character(len=SHR_KIND_CL) :: drydep_srf_file
+  real(r8) :: oslo_aero_so2_develocity_scale = 1.0_r8  
 
 contains
 
@@ -176,6 +178,8 @@ contains
     real(r8) :: ocnice_dvel(ncol,gas_pcnst)
     real(r8) :: ocnice_dflx(pcols,gas_pcnst)
 
+    real(r8) :: so2_develocity_scale
+
     real(r8), dimension(ncol) :: term    ! work array
     integer  :: ispec
     real(r8)  :: lndfrac(pcols)
@@ -199,7 +203,7 @@ contains
     !   ... initialize
     !-------------------------------------------------------------------------------------
     dvelocity(:,:) = 0._r8
-
+    so2_develocity_scale = oslo_aero_so2_develocity_scale
     !-------------------------------------------------------------------------------------
     !   ... compute the dep velocities over ocean and sea ice
     !       land type 7 is used for ocean
@@ -273,6 +277,9 @@ contains
        !-------------------------------------------------------------------------------------
        !        ... compute the deposition flux
        !-------------------------------------------------------------------------------------
+       if ( ispec == so2_ndx ) then
+         dvelocity(:ncol,spc_ndx(ispec)) = dvelocity(:ncol,spc_ndx(ispec)) * so2_develocity_scale
+       end if
        dflx(:ncol,spc_ndx(ispec)) = dvelocity(:ncol,spc_ndx(ispec)) * term(:ncol) * mmr(:ncol,plev,spc_ndx(ispec))
     end do
 

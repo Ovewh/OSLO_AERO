@@ -30,7 +30,7 @@ module oslo_aero_depos
   !
   use oslo_aero_share,         only: nmodes, max_tracers_per_mode
   use oslo_aero_share,         only: numberOfProcessModeTracers, getNumberOfTracersInMode, getTracerIndex
-  use oslo_aero_share,         only: is_process_mode, processModeMap, processModeSigma, lifeCycleSigma
+  use oslo_aero_share,         only: is_process_mode, processModeMap, processModeSigma, lifeCycleSigma, mode_dry_velocity_scale
   use oslo_aero_share,         only: belowCloudScavengingCoefficientProcessModes, belowCloudScavengingCoefficient
   use oslo_aero_share,         only: getCloudTracerIndex, GetCloudTracerIndexDirect, getCloudTracerName, qqcw_get_field
   use oslo_aero_share,         only: aerosol_type_name, N_AEROSOL_TYPES, aerosolType, AEROSOL_TYPE_SULFATE
@@ -126,7 +126,7 @@ contains
    real :: oslo_aero_f_act_conv_interstitial = unset_r8 ! prescribed lifecycle of modes
    real :: oslo_aero_sol_factb_interstitial = unset_r8 ! below-cloud scavenging coefficient for interstitial aerosols
    real :: oslo_aero_sol_factic_interstitial = unset_r8 ! in-cloud scavenging coefficient for interstitial aerosols
-   real :: oslo_aero_sol_f_act_conv_coarse_dust = unset_r8 
+   real :: oslo_aero_f_act_conv_coarse_dust = unset_r8 
 
    integer :: unitn, ierr
    character(len=*), parameter :: subname='oslo_aero_depos_readnl'
@@ -475,7 +475,7 @@ contains
     jvlc = 4
     call oslo_aero_depvel_part( ncol, t(:,:), pmid(:,:), ram1, fv,  &
          vlc_dry(:,:,jvlc), vlc_trb(:,jvlc), vlc_grv(:,:,jvlc),  &
-         rad_drop(:,:), dens_drop(:,:), sg_drop(:,:), 3, lchnk)
+         rad_drop(:,:), dens_drop(:,:), sg_drop(:,:), 3, 1.0_r8, lchnk)
 
     !At this point we really need to distribute the lifecycle-tracers over
     !the actual modes (maybe according to surface available of background tracers?)
@@ -512,7 +512,7 @@ contains
              jvlc = 2
              call oslo_aero_depvel_part( ncol, t(:,:), pmid(:,:), ram1, fv,  &
                   vlc_dry(:,:,jvlc), vlc_trb(:,jvlc), vlc_grv(:,:,jvlc),  &
-                  rad_aer(:,:), dens_aer(:,:), sg_aer(:,:), 3, lchnk)
+                  rad_aer(:,:), dens_aer(:,:), sg_aer(:,:), 3, mode_dry_velocity_scale(imode), lchnk)
           end if
 
           do lspec = 1, num_tracers_in_mode(imode)   ! loop over number + constituents
@@ -540,7 +540,7 @@ contains
 
                    call oslo_aero_depvel_part( ncol, t(:,:), pmid(:,:), ram1, fv,  &
                         vlc_dry(:,:,jvlc), vlc_trb(:,jvlc), vlc_grv(:,:,jvlc),  &
-                        rad_aer(:,:), dens_aer(:,:), sg_aer(:,:), 3, lchnk)
+                        rad_aer(:,:), dens_aer(:,:), sg_aer(:,:), 3, 1.0_r8, lchnk)
                 endif
              else
                 jvlc = 4              !mass in cloud tracers
@@ -1043,7 +1043,7 @@ contains
 
   !===============================================================================
   subroutine oslo_aero_depvel_part( ncol, t, pmid, ram1, fv, vlc_dry, vlc_trb, vlc_grv,  &
-       radius_part, density_part, sig_part, moment, lchnk )
+       radius_part, density_part, sig_part, moment, velocity_scale_fact, lchnk )
 
     !    calculates surface deposition velocity of particles
     !    L. Zhang, S. Gong, J. Padro, and L. Barrie
@@ -1060,6 +1060,7 @@ contains
     real(r8), intent(in) :: radius_part(pcols,pver)    ! mean (volume/number) particle radius (m)
     real(r8), intent(in) :: density_part(pcols,pver)   ! density of particle material (kg/m3)
     real(r8), intent(in) :: sig_part(pcols,pver)       ! geometric standard deviation of particles
+    real(r8), intent(in) :: velocity_scale_fact
     integer,  intent(in) :: moment ! moment of size distribution (0 for number, 2 for surface area, 3 for volume)
     integer,  intent(in) :: ncol
     integer,  intent(in) :: lchnk
@@ -1165,7 +1166,7 @@ contains
                gravit*slp_crc(icol,ilev) / vsc_dyn_atm(icol,ilev) ![m s-1] Stokes' settling velocity SeP97 p. 466
           vlc_grv(icol,ilev) = vlc_grv(icol,ilev) * dispersion
 
-          vlc_dry(icol,ilev)=vlc_grv(icol,ilev)
+          vlc_dry(icol,ilev)=vlc_grv(icol,ilev)*velocity_scale_fact
        enddo
     enddo
     ilev=pver  ! only look at bottom level for next part
@@ -1205,8 +1206,8 @@ contains
              wrk3 = wrk3 + lnd_frc*( wrk1 + vlc_grv(icol,ilev) )
           endif
        enddo  ! n_land_type
-       vlc_trb(icol) = wrk2
-       vlc_dry(icol,ilev) = wrk3
+       vlc_trb(icol) = wrk2*velocity_scale_fact
+       vlc_dry(icol,ilev) = wrk3*velocity_scale_fact
     enddo !ncol
 
   end subroutine oslo_aero_depvel_part

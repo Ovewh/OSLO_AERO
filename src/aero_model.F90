@@ -67,6 +67,8 @@ module aero_model
 
   use modal_aero_wateruptake, only: modal_strat_sulfate
 
+  use oslo_aero_seasalt,        only: seasalt_emis_scale
+  use oslo_aero_ocean,          only: dms_emis_scale
   implicit none
   private
 
@@ -121,7 +123,7 @@ contains
     integer :: unitn, ierr
     character(len=*), parameter :: subname = 'aero_model_readnl'
 
-    namelist /aerosol_nl/ modal_strat_sulfate
+    namelist /aerosol_nl/ modal_strat_sulfate, seasalt_emis_scale, dms_emis_scale
     !-----------------------------------------------------------------------------
 
     ! Read namelist
@@ -138,7 +140,10 @@ contains
     end if
     call mpi_bcast(modal_strat_sulfate, 1, mpi_logical, mstrid, mpicom, ierr)
     if (ierr /= mpi_success) call endrun(subname//" mpi_bcast: modal_strat_sulfate")
-
+    call mpi_bcast(seasalt_emis_scale, 1, mpi_real8, mstrid, mpicom, ierr)
+    if (ierr /= mpi_success) call endrun(subname//" mpi_bcast: seasalt_emis_scale")
+    call mpi_bcast(dms_emis_scale, 1, mpi_real8, mstrid, mpicom, ierr)
+    if (ierr /= mpi_success) call endrun(subname//" mpi_bcast: dms_emis_scale")
     call oslo_aero_share_readnl(nlfilename)
     call oslo_aero_condtend_readnl(nlfilename)
 

@@ -373,7 +373,7 @@ contains
           if (.not. use_preexisting_ice) then
              wsubi(icol,ilev) = min(wsubi(icol,ilev), 0.2_r8)
           endif
-          wsub(icol,ilev)  = max(wsub_max, wsub(icol,ilev)) * wsub_scale
+          wsub(icol,ilev) = max(wsub_min, wsub(icol,ilev)) * wsub_scale
 
        end do
     end do

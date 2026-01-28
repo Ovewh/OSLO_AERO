@@ -134,6 +134,12 @@ module oslo_aero_share
          2.1_r8, 1.72_r8, 1.6_r8,                &   !8-10  (SS)     ! Salter et al. (2015)
          1.8_r8, 1.8_r8, 1.8_r8, 1.8_r8/)            !11-14
 
+  real(r8), protected :: mode_dry_velocity_scale(0:nmodes) = &
+       (/1.0_r8, 1.0_r8, 1.0_r8, 1.0_r8, 1.0_r8, & 
+         1.0_r8, 1.0_r8, 1.0_r8,               &   
+         1.0_r8, 1.0_r8, 1.0_r8,                &  
+         1.0_r8, 1.0_r8, 1.0_r8, 1.0_r8/)          
+
   !Below cloud scavenging coefficients for modes which have an actual size
   real(r8), parameter :: belowCloudScavengingCoefficient(0:nmodes) =     &
        (/ 0.01_r8  ,  0.02_r8 , 0.02_r8  ,  0.0_r8 ,   0.02_r8,   0.01_r8, & !(0-5)
@@ -308,9 +314,9 @@ module oslo_aero_share
   real(r8), parameter, private :: unset_r8 = huge(1.0_r8)
 
   ! Namelist variables
-  real(r8),protected :: sol_facti_cloud_borne   = 1._r8
-  real(r8),protected :: sol_factb_interstitial  = 0.1_r8
-  real(r8),protected :: sol_factic_interstitial = 0.4_r8
+  real(r8) :: sol_facti_cloud_borne   = 1._r8
+  real(r8) :: sol_factb_interstitial  = 0.1_r8
+  real(r8) :: sol_factic_interstitial = 0.4_r8
 
 !===============================================================================
 contains
@@ -329,13 +335,14 @@ contains
     real(r8) :: dst_density = unset_r8
     real(r8) :: dst_solfact = unset_r8
     real(r8) :: oslo_aero_lifecyclenumbermedianradius(0:nmodes) = unset_r8 ! prescribed lifecycle of modes
+    real(r8) :: oslo_aero_drydep_mode_velocity_scale(0:nmodes) = unset_r8 ! drydep velocity scale factors for modes
     real(r8) :: oslo_aero_lifecyclesigma(0:nmodes) = unset_r8 ! prescribed lifecycle of modes
 
     integer :: unitn, ierr,ind_mode
     character(len=*), parameter :: subname = 'oslo_aero_share_readnl'
 
     namelist /oslo_aero_share_nl/ dst_density, oslo_aero_lifecyclenumbermedianradius, oslo_aero_lifecyclesigma, dst_solfact, &
-    sol_facti_cloud_borne, sol_factb_interstitial, sol_factic_interstitial 
+    sol_facti_cloud_borne, sol_factb_interstitial, sol_factic_interstitial, oslo_aero_drydep_mode_velocity_scale 
 
     !-----------------------------------------------------------------------
 
@@ -365,13 +372,14 @@ contains
     if (ierr /= mpi_success) call endrun(subname//" mpi_bcast: sol_factb_interstitial")
     call mpi_bcast(sol_factic_interstitial, 1, mpi_real8, mstrid, mpicom, ierr)
     if (ierr /= mpi_success) call endrun(subname//" mpi_bcast: sol_factic_interstitial")
-
+    call mpi_bcast(oslo_aero_drydep_mode_velocity_scale,  nmodes+1, mpi_real8, mstrid, mpicom, ierr)
+    if (ierr /= mpi_success) call endrun(subname//" mpi_bcast: oslo_aero_drydep_mode_velocity_scale")
 
     if (dst_density /= unset_r8) aerosol_type_density(4) = dst_density
     if (dst_solfact /= unset_r8) aerosol_type_soluble_mass_fraction(4) = dst_solfact
     lifeCycleNumberMedianRadius(0:nmodes) = oslo_aero_lifecyclenumbermedianradius(0:nmodes)
     lifeCycleSigma(0:nmodes) = oslo_aero_lifecyclesigma(0:nmodes)
-
+    mode_dry_velocity_scale(0:nmodes) = oslo_aero_drydep_mode_velocity_scale(0:nmodes)
     if (masterproc) then
       write(iulog,*) 'dst_density = ', dst_density
       write(iulog,*) 'dst_solfact = ', dst_solfact
@@ -381,6 +389,7 @@ contains
       do ind_mode=0,nmodes
          write(iulog,*) 'lifeCycleNumberMedianRadius(',ind_mode,') = ', lifeCycleNumberMedianRadius(ind_mode) ! add iulog
          write(iulog,*) 'lifeCycleSigma(',ind_mode,') = ', lifeCycleSigma(ind_mode) ! add iulog
+         write(iulog,*) 'mode_dry_velocity_scale(',ind_mode,') = ', mode_dry_velocity_scale(ind_mode) ! add iulog
       end do
     end if
     
