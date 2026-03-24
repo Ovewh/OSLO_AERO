@@ -47,7 +47,7 @@ use string_utils,        only: int2str
 use prescribed_volcaero,      only: has_prescribed_volcaero, solar_bands, terrestrial_bands
 use oslo_aero_optical_params, only: oslo_aero_optical_params_calc
 use oslo_aero_share,          only: nmodes_oslo=>nmodes
-use oslo_aero_control,        only: use_aerocom
+use oslo_aero_control,        only: use_aerocom, no_rad_dust_active
 use oslo_aero_aerocom,        only: dod440, dod550, dod870, abs550, abs550alt
 ! OSLO_AERO end
 
@@ -1361,8 +1361,9 @@ subroutine radiation_tend( &
                   call outfld('FSUS_DRF',ftem_1d      , pcols, lchnk)
                   call outfld('FSDSCDRF',rd%fsdsc(:)  , pcols, lchnk)
                end if
-
-               call rad_rrtmg_sw( &
+               
+               if ( no_rad_dust_active == .true. ) then
+                  call rad_rrtmg_sw( &
                   lchnk, ncol, num_rrtmg_levs, r_state, state%pmid,          &
                   cldfprime, aer_tau, aer_tau_w, aer_tau_w_g,  aer_tau_w_f,  &
                   eccf, coszrs, rd%solin, sfac, cam_in%asdir,                &
@@ -1374,8 +1375,21 @@ subroutine radiation_tend( &
                   IdxDay, IdxNite, su, sd, E_cld_tau=c_cld_tau,              &
                   E_cld_tau_w=c_cld_tau_w, E_cld_tau_w_g=c_cld_tau_w_g,      &
                   E_cld_tau_w_f=c_cld_tau_w_f, old_convert=.false., idrf=.false.)
+               else
+                  call rad_rrtmg_sw( &
+                     lchnk, ncol, num_rrtmg_levs, r_state, state%pmid,          &
+                     cldfprime, aer_tau, aer_tau_w, aer_tau_w_g,  aer_tau_w_f,  &
+                     eccf, coszrs, rd%solin, sfac, cam_in%asdir,                &
+                     cam_in%asdif, cam_in%aldir, cam_in%aldif, qrs, rd%qrsc,    &
+                     fsnt, rd%fsntc, rd%fsntoa, rd%fsutoa, rd%fsntoac,          &
+                     rd%fsnirt, rd%fsnrtc, rd%fsnirtsq, fsns, rd%fsnsc,         &
+                     rd%fsdsc, fsds, cam_out%sols, cam_out%soll, cam_out%solsd, &
+                     cam_out%solld, fns, fcns, Nday, Nnite,                     &
+                     IdxDay, IdxNite, su, sd, E_cld_tau=c_cld_tau,              &
+                     E_cld_tau_w=c_cld_tau_w, E_cld_tau_w_g=c_cld_tau_w_g,      &
+                     E_cld_tau_w_f=c_cld_tau_w_f, old_convert=.false., idrf=.false.)
                ! OSLO_AERO end
-
+               end if
                ! Output net fluxes at 200 mb
                call vertinterp(ncol, pcols, pverp, state%pint, 20000._r8, fcns, rd%fsn200c)
                call vertinterp(ncol, pcols, pverp, state%pint, 20000._r8, fns,  rd%fsn200)

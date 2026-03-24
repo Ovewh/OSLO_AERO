@@ -18,7 +18,7 @@ module oslo_aero_optical_params
   use oslo_aero_conc,      only: calculateBulkProperties, partitionMass
   use oslo_aero_sw_tables, only: interpol0, interpol1, interpol2to3, interpol4, interpol5to10
   use oslo_aero_aerocom,   only: aerocom1, aerocom2
-  use oslo_aero_control,   only: use_aerocom
+  use oslo_aero_control,   only: use_aerocom, no_rad_dust_active
   use perf_mod,            only: t_startf, t_stopf
 
   implicit none
@@ -343,20 +343,53 @@ contains
           end do
        enddo
     enddo
-    do ib=1,nbands
-       do imode=0,nmodes
-          do ilev=1,pver
-             do icol=1,ncol
-                betot(icol,ilev,ib)=betot(icol,ilev,ib)+Nnatk(icol,ilev,imode) &
-                     *be(icol,ilev,imode,ib)
-                ssatot(icol,ilev,ib)=ssatot(icol,ilev,ib)+Nnatk(icol,ilev,imode) &
-                     *be(icol,ilev,imode,ib)*ssa(icol,ilev,imode,ib)
-                asymtot(icol,ilev,ib)=asymtot(icol,ilev,ib)+Nnatk(icol,ilev,imode) &
-                     *be(icol,ilev,imode,ib)*ssa(icol,ilev,imode,ib)*asym(icol,ilev,imode,ib)
-             end do
-          enddo
-       enddo
-    enddo
+
+    if ( no_rad_dust_active == .true.) then
+      do ib=1,nbands
+         do imode=0,4
+            do ilev=1,pver
+               do icol=1,ncol
+                  betot(icol,ilev,ib)=betot(icol,ilev,ib)+Nnatk(icol,ilev,imode) &
+                        *be(icol,ilev,imode,ib)
+                  ssatot(icol,ilev,ib)=ssatot(icol,ilev,ib)+Nnatk(icol,ilev,imode) &
+                        *be(icol,ilev,imode,ib)*ssa(icol,ilev,imode,ib)
+                  asymtot(icol,ilev,ib)=asymtot(icol,ilev,ib)+Nnatk(icol,ilev,imode) &
+                        *be(icol,ilev,imode,ib)*ssa(icol,ilev,imode,ib)*asym(icol,ilev,imode,ib)
+               end do
+            enddo
+         enddo
+      enddo 
+
+      do ib=1,nbands
+         do imode=7,nbmodes
+            do ilev=1,pver
+               do icol=1,ncol
+                  betot(icol,ilev,ib)=betot(icol,ilev,ib)+Nnatk(icol,ilev,imode) &
+                        *be(icol,ilev,imode,ib)
+                  ssatot(icol,ilev,ib)=ssatot(icol,ilev,ib)+Nnatk(icol,ilev,imode) &
+                        *be(icol,ilev,imode,ib)*ssa(icol,ilev,imode,ib)
+                  asymtot(icol,ilev,ib)=asymtot(icol,ilev,ib)+Nnatk(icol,ilev,imode) &
+                        *be(icol,ilev,imode,ib)*ssa(icol,ilev,imode,ib)*asym(icol,ilev,imode,ib)
+               end do
+            enddo
+         enddo
+      enddo 
+    else
+      do ib=1,nbands
+         do imode=0,nmodes
+            do ilev=1,pver
+               do icol=1,ncol
+                  betot(icol,ilev,ib)=betot(icol,ilev,ib)+Nnatk(icol,ilev,imode) &
+                        *be(icol,ilev,imode,ib)
+                  ssatot(icol,ilev,ib)=ssatot(icol,ilev,ib)+Nnatk(icol,ilev,imode) &
+                        *be(icol,ilev,imode,ib)*ssa(icol,ilev,imode,ib)
+                  asymtot(icol,ilev,ib)=asymtot(icol,ilev,ib)+Nnatk(icol,ilev,imode) &
+                        *be(icol,ilev,imode,ib)*ssa(icol,ilev,imode,ib)*asym(icol,ilev,imode,ib)
+               end do
+            enddo
+         enddo
+      enddo
+    end if
 
     ! Adding also the volcanic contribution (CMIP6), which is using a CMIP6
     ! band numbering identical to the AeroTab numbering (unlike CAM) both
