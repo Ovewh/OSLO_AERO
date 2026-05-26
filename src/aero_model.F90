@@ -107,6 +107,11 @@ module aero_model
   integer :: ndx_soa_sv = -1 ! for surf_area_dens
   logical :: convproc_do_aer = .false.
 
+  ! Namelist variables
+  real(r8) :: sol_facti_cloud_borne   = 1._r8
+  real(r8) :: sol_factb_interstitial  = 0.1_r8
+  real(r8) :: sol_factic_interstitial = 0.4_r8
+  real(r8) :: seasalt_emis_scale = 1._r8 
 !=============================================================================
 contains
 !=============================================================================
@@ -123,7 +128,7 @@ contains
     integer :: unitn, ierr
     character(len=*), parameter :: subname = 'aero_model_readnl'
 
-    namelist /aerosol_nl/ modal_strat_sulfate, seasalt_emis_scale, dms_emis_scale
+    namelist /aerosol_nl/ sol_facti_cloud_borne, sol_factb_interstitial, sol_factic_interstitial, seasalt_emis_scale,  dms_emis_scale 
     !-----------------------------------------------------------------------------
 
     ! Read namelist
@@ -138,15 +143,16 @@ contains
        end if
        close(unitn)
     end if
-    call mpi_bcast(modal_strat_sulfate, 1, mpi_logical, mstrid, mpicom, ierr)
-    if (ierr /= mpi_success) call endrun(subname//" mpi_bcast: modal_strat_sulfate")
+    call mpi_bcast(sol_facti_cloud_borne, 1, mpi_real8, mstrid, mpicom, ierr)
+    if (ierr /= mpi_success) call endrun(subname//" mpi_bcast: sol_facti_cloud_borne")
+    call mpi_bcast(sol_factb_interstitial, 1, mpi_real8, mstrid, mpicom, ierr)
+    if (ierr /= mpi_success) call endrun(subname//" mpi_bcast: sol_factb_interstitial")
+    call mpi_bcast(sol_factic_interstitial, 1, mpi_real8, mstrid, mpicom, ierr)
+    if (ierr /= mpi_success) call endrun(subname//" mpi_bcast: sol_factic_interstitial")
     call mpi_bcast(seasalt_emis_scale, 1, mpi_real8, mstrid, mpicom, ierr)
     if (ierr /= mpi_success) call endrun(subname//" mpi_bcast: seasalt_emis_scale")
     call mpi_bcast(dms_emis_scale, 1, mpi_real8, mstrid, mpicom, ierr)
     if (ierr /= mpi_success) call endrun(subname//" mpi_bcast: dms_emis_scale")
-    call oslo_aero_share_readnl(nlfilename)
-    call oslo_aero_condtend_readnl(nlfilename)
-
     call oslo_aero_ctl_readnl(nlfilename)
     call oslo_aero_microp_readnl(nlfilename)
     call oslo_aero_dust_readnl(nlfilename)
@@ -252,7 +258,7 @@ contains
     call oslo_aero_ocean_init()
     call oslo_aero_depos_init(pbuf2d)
     call oslo_aero_dust_init()
-    call oslo_aero_seasalt_init()
+    call oslo_aero_seasalt_init(seasalt_emis_scale)
     call oslo_aero_wetdep_init()
 
     dummy = 'RAM1'
