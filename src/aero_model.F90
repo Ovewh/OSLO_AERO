@@ -67,8 +67,6 @@ module aero_model
 
   use modal_aero_wateruptake, only: modal_strat_sulfate
 
-  use oslo_aero_seasalt,        only: seasalt_emis_scale
-  use oslo_aero_ocean,          only: dms_emis_scale
   implicit none
   private
 
@@ -111,7 +109,8 @@ module aero_model
   real(r8) :: sol_facti_cloud_borne   = 1._r8
   real(r8) :: sol_factb_interstitial  = 0.1_r8
   real(r8) :: sol_factic_interstitial = 0.4_r8
-  real(r8) :: seasalt_emis_scale = 1._r8 
+  real(r8) :: seasalt_emis_scale = 1._r8
+  real(r8) :: dms_emis_scale = 1._r8
 !=============================================================================
 contains
 !=============================================================================
@@ -255,7 +254,7 @@ contains
        call initaeropt()            ! table initialization
     end if
     call initializeCondensation()
-    call oslo_aero_ocean_init()
+    call oslo_aero_ocean_init(dms_emis_scale)
     call oslo_aero_depos_init(pbuf2d)
     call oslo_aero_dust_init()
     call oslo_aero_seasalt_init(seasalt_emis_scale)

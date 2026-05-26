@@ -46,8 +46,6 @@ module oslo_aero_ocean
   public :: oslo_aero_opom_emis  ! calculate opom surface emissions
   public :: oslo_aero_opom_inq   ! logical function which tells oslo_salt what to do
 
-
-  public :: dms_emis_scale
   ! Private interfaces
   private:: oslo_aero_ocean_getnl
 
@@ -75,7 +73,7 @@ module oslo_aero_ocean
   integer            :: fixed_ymd = 0                   !running one date only?
   integer            :: fixed_tod = 0                   !running one time of day only?
   logical            :: rmv_file  = .false.             !delete file when finished with it
-  real(r8)          :: dms_emis_scale = 1.0_r8          ! scaling factor for DMS emissions
+  real(r8)          :: emis_scale = huge(1.0_r8)         ! scaling factor for DMS emissions
 !===============================================================================
 contains
 !===============================================================================
@@ -125,9 +123,11 @@ contains
   end subroutine oslo_aero_ocean_getnl
 
   !===============================================================================
-  subroutine oslo_aero_ocean_init()
+  subroutine oslo_aero_ocean_init(dms_emis_scale)
 
-   use phys_control,   only : history_aerosol_forcing
+    use phys_control,   only : history_aerosol_forcing
+
+    real(r8), intent(in) :: dms_emis_scale
 
     ! local variables
     integer  :: astat
@@ -135,6 +135,8 @@ contains
     integer            :: cycle_yr(2)
     character(len=32)  :: data_type(2)
     character(len=16)  :: emis_species(2)
+
+    emis_scale = dms_emis_scale
 
     ! Collect and save namelist information in module
     call oslo_aero_ocean_getnl()
@@ -239,10 +241,8 @@ contains
     real(r8) :: kwdms(pcols)
     real(r8), parameter :: z0= 0.0001_r8     ! [m] roughness length over ocean
     real(r8), parameter :: Xconvxa= 6.97e-07 ! Wanninkhof's a=0.251 converted to ms-1/(ms-1)^2
-    real(r8) :: emis_scale
     ! use interpolated data if appropriate
     if (dms_source=='lana' .or. dms_source=='kettle') then
-       emis_scale = dms_emis_scale
        ! if concentration file - obtain dms data from file
        flux(:) = 0._r8
        odms(:) = 0._r8
@@ -259,7 +259,7 @@ contains
        u10m (:ncol) = u10m(:ncol)*log(10._r8/z0)/log(zm(:ncol)/z0)
        scdms(:ncol) = 2855.7+  (-177.63 + (6.0438 + (-0.11645 + 0.00094743*t(:ncol))*t(:ncol))*t(:ncol))*t(:ncol)
        kwdms(:ncol) = open_ocn(:ncol) * Xconvxa *u10m(:ncol)**2*(660./scdms(:ncol))**0.5
-       flux (:ncol) = 62.13*kwdms(:ncol)*1e-9*odms(:ncol)*dms_emis_scale
+       flux (:ncol) = 62.13*kwdms(:ncol)*1e-9*odms(:ncol)*emis_scale
        call outfld('odms', odms(:ncol), ncol, lchnk)
 
        cflx(:ncol,pndx_fdms) = flux(:ncol)
