@@ -66,8 +66,8 @@ module oslo_aero_depos
   real(r8), parameter, private :: unset_r8 = huge(1.0_r8)
   real(r8), parameter :: cmftau = 3600._r8
   real(r8), parameter :: molwta = 28.97_r8 ! molecular weight dry air gm/mole
-  real(r8), public, protected :: f_act_conv_coarse_dust = unset_r8
-  real(r8), public, protected :: f_act_conv_interstitial = .8_r8 
+  real(r8) :: f_act_conv_coarse_dust = unset_r8
+  real(r8) :: f_act_conv_interstitial = .8_r8 
   type wetdep_inputs_t
      real(r8), pointer :: cldt(:,:)  => null()  ! cloud fraction
      real(r8), pointer :: qme(:,:)   => null()

@@ -22,7 +22,6 @@ module mo_drydep
   use physconst,        only : karman
 
   use infnan,                only : nan, assignment(=)
-!   use chemistry,        only : oslo_aero_so2_develocity_scale
 
   implicit none
 

@@ -96,7 +96,6 @@ module chemistry
   ! dry dep
 
   character(len=shr_kind_cl)    :: depvel_lnd_file = 'depvel_lnd_file'
-  real(r8), public, protected   :: oslo_aero_so2_develocity_scale 
 
   ! emis
   integer, parameter :: max_num_emis_files = max(100,2*pcnst)
