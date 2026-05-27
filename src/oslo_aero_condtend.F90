@@ -61,8 +61,8 @@ module oslo_aero_condtend
   ! Assumed number of monolayers
   !smb++ Adding namelist options (value overwritten in defaults)
   !real(r8), parameter, private :: n_so4_monolayers_age = 3.0_r8
-  real(r8), protected, private :: n_so4_monolayers_age = 3.0_r8
-  real(r8), protected, private :: nucl_scaling_factor = 1.0_r8
+  real(r8), private :: n_so4_monolayers_age = 3.0_r8
+  real(r8), private :: nucl_scaling_factor = 1.0_r8
   !smb--
   ! thickness of the so4 monolayers (m)
   ! for so4(+nh4), use bi-sulfate mw and 1.77 g/cm3 as in MAM
@@ -70,7 +70,7 @@ module oslo_aero_condtend
   ! now set in initializeCondensation below. 4.76e-10 is the thickness of a monolayer of H2SO4
   ! also set it to private, because it's not used outside.
   !real(r8), parameter, public :: dr_so4_monolayers_age = n_so4_monolayers_age * 4.76e-10_r8
-  real(r8), protected, private :: dr_so4_monolayers_age != n_so4_monolayers_age * 4.76e-10_r8
+  real(r8), private :: dr_so4_monolayers_age != n_so4_monolayers_age * 4.76e-10_r8
   !smb--
   !smb++
   real(r8), parameter, private :: unset_r8 = huge(1.0_r8)
@@ -89,7 +89,7 @@ contains
 
       ! Namelist variables
       real(r8) :: oslo_aero_n_so4_monolayers_age = unset_r8 ! number of so4 monolayers before particle counted as aged.
-      real(r8) :: oslo_aero_nucl_scaling_factor= unset_r8 ! nucleation rate scaling factors
+      real(r8) :: oslo_aero_nucl_scaling_factor = unset_r8 ! nucleation rate scaling factors
 
       ! Local variables
       integer :: unitn, ierr,ind_mode
@@ -113,6 +113,7 @@ contains
       if (ierr /= 0) call endrun(subname//": FATAL: mpi_bcast: oslo_aero_n_so4_monolayers_age")
       n_so4_monolayers_age = oslo_aero_n_so4_monolayers_age
       if(n_so4_monolayers_age == unset_r8) call endrun(subname//": FATAL: n_so4_monolayers_age is not set")
+      
       call mpi_bcast(oslo_aero_nucl_scaling_factor, 1, mpi_real8, mstrid, mpicom, ierr)
       if (ierr /= 0) call endrun(subname//": FATAL: mpi_bcast: oslo_aero_n_so4_monolayers_age")
       nucl_scaling_factor = oslo_aero_nucl_scaling_factor
@@ -974,7 +975,10 @@ contains
 
        end do !horizontal points
     end do     !levels
-
+    if (nucl_scaling_factor .ne. 1.0_r8) then
+      nuclrate_bin(:,:) = nuclrate_bin(:,:)*nucl_scaling_factor
+      nuclrate_pbl(:,:) = nuclrate_pbl(:,:)*nucl_scaling_factor
+    end if
     !-- Calculate total nucleated mass
     do ilev=1,pver
        do icol=1,ncol
