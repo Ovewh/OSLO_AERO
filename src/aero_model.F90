@@ -44,7 +44,6 @@ module aero_model
   use oslo_aero_share,          only: lifeCycleNumberMedianRadius, rhopart, lifeCycleSigma
   use oslo_aero_share,          only: l_so4_a2, l_bc_n, l_bc_ax, l_dms, l_isoprene, l_monoterp
   use oslo_aero_share,          only: MODE_IDX_BC_NUC, MODE_IDX_BC_EXT_AC
-  use oslo_aero_share,          only: oslo_aero_share_readnl
   use oslo_aero_condtend,       only: oslo_aero_condtend_readnl
   use oslo_aero_share,          only: getNumberofTracersInMode, getCloudTracerIndexDirect, getCloudTracerName
   use oslo_aero_share,          only: getTracerIndex
@@ -59,7 +58,6 @@ module aero_model
   use oslo_aero_ocean,          only: oslo_aero_ocean_init, oslo_aero_dms_emis
   use oslo_aero_sox_cldaero,    only: sox_cldaero_init
   use oslo_aero_microp,         only: oslo_aero_microp_readnl
-  use oslo_aero_share,          only: oslo_aero_share_readnl
   use oslo_aero_sw_tables,      only: initopt
   use oslo_aero_aerodry_tables, only: initdry
   use oslo_aero_aerocom_tables, only: initaeropt
@@ -255,7 +253,7 @@ contains
     end if
     call initializeCondensation()
     call oslo_aero_ocean_init(dms_emis_scale)
-    call oslo_aero_depos_init(pbuf2d)
+    call oslo_aero_depos_init(pbuf2d, sol_facti_cloud_borne, sol_factb_interstitial, sol_factic_interstitial)
     call oslo_aero_dust_init()
     call oslo_aero_seasalt_init(seasalt_emis_scale)
     call oslo_aero_wetdep_init()

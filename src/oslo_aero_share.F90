@@ -313,11 +313,6 @@ module oslo_aero_share
 
   real(r8), parameter, private :: unset_r8 = huge(1.0_r8)
 
-  ! Namelist variables
-  real(r8) :: sol_facti_cloud_borne   = 1._r8
-  real(r8) :: sol_factb_interstitial  = 0.1_r8
-  real(r8) :: sol_factic_interstitial = 0.4_r8
-
 !===============================================================================
 contains
 !===============================================================================
@@ -342,7 +337,7 @@ contains
     character(len=*), parameter :: subname = 'oslo_aero_share_readnl'
 
     namelist /oslo_aero_share_nl/ dst_density, oslo_aero_lifecyclenumbermedianradius, oslo_aero_lifecyclesigma, dst_solfact, &
-    sol_facti_cloud_borne, sol_factb_interstitial, sol_factic_interstitial, oslo_aero_drydep_mode_velocity_scale 
+    oslo_aero_drydep_mode_velocity_scale
 
     !-----------------------------------------------------------------------
 
@@ -366,12 +361,6 @@ contains
     if (ierr /= mpi_success) call endrun(subname//": FATAL: mpi_bcast: oslo_aero_lifecyclenumbermedianradius")
     call mpi_bcast(oslo_aero_lifecyclesigma, nmodes+1, mpi_real8, mstrid, mpicom, ierr)
     if (ierr /= mpi_success) call endrun(subname//": FATAL: mpi_bcast: oslo_aero_lifecyclesigma")
-    call mpi_bcast(sol_facti_cloud_borne, 1, mpi_real8, mstrid, mpicom, ierr)
-    if (ierr /= mpi_success) call endrun(subname//" mpi_bcast: sol_facti_cloud_borne")
-    call mpi_bcast(sol_factb_interstitial, 1, mpi_real8, mstrid, mpicom, ierr)
-    if (ierr /= mpi_success) call endrun(subname//" mpi_bcast: sol_factb_interstitial")
-    call mpi_bcast(sol_factic_interstitial, 1, mpi_real8, mstrid, mpicom, ierr)
-    if (ierr /= mpi_success) call endrun(subname//" mpi_bcast: sol_factic_interstitial")
     call mpi_bcast(oslo_aero_drydep_mode_velocity_scale,  nmodes+1, mpi_real8, mstrid, mpicom, ierr)
     if (ierr /= mpi_success) call endrun(subname//" mpi_bcast: oslo_aero_drydep_mode_velocity_scale")
 
@@ -383,9 +372,6 @@ contains
     if (masterproc) then
       write(iulog,*) 'dst_density = ', dst_density
       write(iulog,*) 'dst_solfact = ', dst_solfact
-      write(iulog,*) 'sol_facti_cloud_borne = ', sol_facti_cloud_borne
-      write(iulog,*) 'sol_factb_interstitial = ', sol_factb_interstitial
-      write(iulog,*) 'sol_factic_interstitial = ', sol_factic_interstitial
       do ind_mode=0,nmodes
          write(iulog,*) 'lifeCycleNumberMedianRadius(',ind_mode,') = ', lifeCycleNumberMedianRadius(ind_mode) ! add iulog
          write(iulog,*) 'lifeCycleSigma(',ind_mode,') = ', lifeCycleSigma(ind_mode) ! add iulog

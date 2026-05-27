@@ -37,7 +37,6 @@ module oslo_aero_depos
   use oslo_aero_share,         only: l_bc_ax, l_bc_ni, l_bc_ai, l_bc_a, l_bc_ac
   use oslo_aero_share,         only: l_bc_n, l_om_ni, l_om_ai, l_om_ac, l_dst_a2, l_dst_a3
   use oslo_aero_share,         only: l_ss_a2, l_ss_a3, l_so4_a2
-  use oslo_aero_share,         only: sol_factb_interstitial, sol_factic_interstitial, sol_facti_cloud_borne 
   use oslo_aero_dust_sediment, only: oslo_aero_dust_sediment_tend, oslo_aero_dust_sediment_vel
 
   implicit none
@@ -61,7 +60,9 @@ module oslo_aero_depos
   private :: wetdepg     ! scavenging of gas phase constituents by henry's law
   private :: clddiag     ! calc of cloudy volume and rain mixing ratio
 
-  real(r8), public :: sol_facti_cloud_borne
+  real(r8) :: sol_facti_cloud_borne  = huge(1.0_r8) ! strat in-cloud scav cloud-borne tuning factor
+  real(r8) :: sol_factb_interstitial = huge(1.0_r8) ! below-cloud scavenging coefficient for interstitial aerosols
+  real(r8) :: sol_factic_interstitial = huge(1.0_r8) ! in-cloud scavenging coefficient for interstitial aerosols
   real(r8), parameter, private :: unset_r8 = huge(1.0_r8)
   real(r8), parameter :: cmftau = 3600._r8
   real(r8), parameter :: molwta = 28.97_r8 ! molecular weight dry air gm/mole
@@ -124,15 +125,12 @@ contains
 
    ! Namelist variables
    real :: oslo_aero_f_act_conv_interstitial = unset_r8 ! prescribed lifecycle of modes
-   real :: oslo_aero_sol_factb_interstitial = unset_r8 ! below-cloud scavenging coefficient for interstitial aerosols
-   real :: oslo_aero_sol_factic_interstitial = unset_r8 ! in-cloud scavenging coefficient for interstitial aerosols
-   real :: oslo_aero_f_act_conv_coarse_dust = unset_r8 
+   real :: oslo_aero_f_act_conv_coarse_dust = unset_r8
 
    integer :: unitn, ierr
    character(len=*), parameter :: subname='oslo_aero_depos_readnl'
-   
-   namelist /oslo_aero_depos_nl/ oslo_aero_f_act_conv_coarse_dust, oslo_aero_f_act_conv_interstitial, &
-         oslo_aero_sol_factb_interstitial, oslo_aero_sol_factic_interstitial
+
+   namelist /oslo_aero_depos_nl/ oslo_aero_f_act_conv_coarse_dust, oslo_aero_f_act_conv_interstitial
    !-----------------------------------------------------------------------
    
    if (masterproc) then
@@ -157,32 +155,24 @@ contains
    f_act_conv_interstitial= oslo_aero_f_act_conv_interstitial
    if (f_act_conv_interstitial == huge(1.0_r8)) call endrun(subname // ': ERROR f_act_conv_interstitial not set in namelist')
 
-   call mpi_bcast(oslo_aero_sol_factb_interstitial,1, mpi_real8,mstrid,mpicom, ierr)
-   if (ierr /= mpi_success) call endrun(subname // ': mpi_bcast oslo_aero_sol_factb_interstitial')
-   if (oslo_aero_sol_factb_interstitial == huge(1.0_r8)) call endrun(subname // ': ERROR oslo_aero_sol_factb_interstitial not set in namelist')
-
-   sol_factb_interstitial = oslo_aero_sol_factb_interstitial
-   call mpi_bcast(oslo_aero_sol_factic_interstitial,1, mpi_real8,mstrid,mpicom, ierr)
-   if (ierr /= mpi_success) call endrun(subname // ': mpi_bcast oslo_aero_sol_factic_interstitial')
-   if (oslo_aero_sol_factic_interstitial == huge(1.0_r8)) call endrun(subname // ': ERROR oslo_aero_sol_factic_interstitial not set in namelist')
-   sol_factic_interstitial = oslo_aero_sol_factic_interstitial
    if (masterproc) then
       write(iulog,*) 'oslo_aero_depos_readnl: f_act_conv_coarse_dust = ', f_act_conv_coarse_dust
       write(iulog,*) 'oslo_aero_depos_readnl: f_act_conv_interstitial = ', f_act_conv_interstitial
-      write(iulog,*) 'oslo_aero_depos_readnl: sol_factb_interstitial = ', sol_factb_interstitial
-      write(iulog,*) 'oslo_aero_depos_readnl: sol_factic_interstitial = ', oslo_aero_sol_factic_interstitial
    end if
 
   end subroutine oslo_aero_depos_readnl
 
-  subroutine oslo_aero_depos_init( pbuf2d )
+  subroutine oslo_aero_depos_init(pbuf2d, sol_facti_cloud_borne_in, sol_factb_interstitial_in, sol_factic_interstitial_in)
     use time_manager,   only: is_first_step
     use physics_buffer, only: pbuf_set_field
 
-    ! Set oslo aeroslo deposition history output
+    ! Set oslo aerosol deposition history output
 
     ! arguments
     type(physics_buffer_desc), pointer :: pbuf2d(:,:)
+    real(r8), intent(in) :: sol_facti_cloud_borne_in  ! strat in-cloud scav cloud-borne tuning factor
+    real(r8), intent(in) :: sol_factb_interstitial_in ! below-cloud scavenging coefficient for interstitial aerosols
+    real(r8), intent(in) :: sol_factic_interstitial_in ! in-cloud scavenging coefficient for interstitial aerosols
 
     ! local variables
     integer            :: imode, itrac
@@ -196,6 +186,10 @@ contains
     character(len=100) :: aName              ! tracer name
     logical            :: is_in_output(pcnst)
     !-----------------------------------------------------------------------
+
+    sol_facti_cloud_borne  = sol_facti_cloud_borne_in
+    sol_factb_interstitial = sol_factb_interstitial_in
+    sol_factic_interstitial = sol_factic_interstitial_in
 
     fracis_idx      = pbuf_get_index('FRACIS')
     prain_idx       = pbuf_get_index('PRAIN')
