@@ -95,7 +95,7 @@ module chemistry
 
   ! dry dep
 
-  character(len=shr_kind_cl) :: depvel_lnd_file = 'depvel_lnd_file'
+  character(len=shr_kind_cl)    :: depvel_lnd_file = 'depvel_lnd_file'
 
   ! emis
   integer, parameter :: max_num_emis_files = max(100,2*pcnst)
@@ -362,10 +362,11 @@ end function chem_is
     use tracer_srcs,      only: tracer_srcs_defaultopts, tracer_srcs_setopts
     use aero_model,       only: aero_model_readnl
     use gas_wetdep_opts,  only: gas_wetdep_readnl
-    use mo_drydep,        only: drydep_srf_file
+    use mo_drydep,        only: drydep_srf_file, oslo_aero_so2_develocity_scale
     use mo_sulf,          only: sulf_readnl
-    use species_sums_diags,only: species_sums_readnl
+    use species_sums_diags, only: species_sums_readnl
     use ocean_emis,       only: ocean_emis_readnl
+    use mo_setsox,        only: oslo_aero_anions_scale_factor
 
     ! args
 
@@ -401,7 +402,7 @@ end function chem_is
          xs_coef_file, xs_short_file, &
          exo_coldens_file, &
          xs_long_file, rsf_file, photo_max_zen, &
-         depvel_lnd_file, drydep_srf_file, &
+         depvel_lnd_file, drydep_srf_file, oslo_aero_so2_develocity_scale, oslo_aero_anions_scale_factor, &
          srf_emis_type, srf_emis_cycle_yr, srf_emis_fixed_ymd, srf_emis_fixed_tod, srf_emis_specifier,  &
          fstrat_file, fstrat_list, &
          ext_frc_specifier, ext_frc_type, ext_frc_cycle_yr, ext_frc_fixed_ymd, ext_frc_fixed_tod
@@ -464,6 +465,12 @@ end function chem_is
        call freeunit(unitn)
     end if
 
+    ! Dry depostion so2 velocity scale factor
+    call mpibcast (oslo_aero_so2_develocity_scale,1,                   mpir8,   0, mpicom)
+
+    ! pH 
+
+    call mpibcast (oslo_aero_anions_scale_factor,1,                    mpir8,   0, mpicom)
 #ifdef SPMD
     ! Broadcast namelist variables
 
@@ -498,6 +505,7 @@ end function chem_is
 
     call mpibcast (depvel_lnd_file,   len(depvel_lnd_file),            mpichar, 0, mpicom)
     call mpibcast (drydep_srf_file,   len(drydep_srf_file),            mpichar, 0, mpicom)
+
 
     ! emis
 

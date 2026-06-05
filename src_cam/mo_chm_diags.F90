@@ -61,10 +61,10 @@ module mo_chm_diags
   character(len=fieldname_len) :: depflx_name(gas_pcnst)
   character(len=fieldname_len) :: wetdep_name(gas_pcnst)
   character(len=fieldname_len) :: wtrate_name(gas_pcnst)
-  ! OSLO_AERO begin
+  
   character(len=fieldname_len) :: wetdep_name_area(gas_pcnst)
   real(r8), public, protected, allocatable   :: DF_SO2(:,:)
-  ! OSLO_AERO end
+  
   real(r8), parameter :: N_molwgt = 14.00674_r8
   real(r8), parameter :: S_molwgt = 32.066_r8
 

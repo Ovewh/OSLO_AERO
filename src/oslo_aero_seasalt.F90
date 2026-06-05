@@ -12,10 +12,10 @@ module oslo_aero_seasalt
   use oslo_aero_ocean, only: oslo_aero_opom_inq, oslo_aero_opom_emis
   use oslo_aero_share, only: rhopart, l_om_ni, l_ss_a1, l_ss_a2, l_ss_a3
   use oslo_aero_share, only: MODE_IDX_SS_A1, MODE_IDX_SS_A2, MODE_IDX_SS_A3
-
+  
   implicit none
+   
   private
-
   integer , parameter :: numberOfSaltModes = 3
 
   character(len=6)  , public :: seasalt_names(10)
@@ -29,6 +29,9 @@ module oslo_aero_seasalt
 
   public :: oslo_aero_seasalt_init
   public :: oslo_aero_seasalt_emis
+
+  real(r8):: seasalt_emis_scale = 1.0_r8 ! [-] scaling factor for sea salt emissions
+
 
 !===============================================================================
 contains
@@ -79,7 +82,7 @@ contains
     real(r8) :: onOMOceanSource(pcols)              ![kg/m2/s] OM source from Nilsson/O'Dowd
     real(r8) :: OMOceanSource(pcols)                ![kg/m2/s] new OM ocean source
     real(r8), parameter :: z0= 0.0001_r8            ![m] roughness length over ocean
-
+    real(r8) :: emis_scale
     !New numbers are based on Salter et al. (2105):
     !www.atmos-chem-phys-discuss.net/15/13783/2015/doi:10.5194/acpd-15-13783-2015
     !Values from Table 1 in Salter et al. (2015):
@@ -120,7 +123,7 @@ contains
             ( coeffA(imode)*(sst(:ncol)-273.15_r8)*(sst(:ncol)-273.15_r8)*(sst(:ncol)-273.15_r8) &
             + coeffB(imode)*(sst(:ncol)-273.15_r8)*(sst(:ncol)-273.15_r8)                        &
             + coeffC(imode)*(sst(:ncol)-273.15_r8)                                               &
-            + coeffD(imode) )
+            + coeffD(imode) )* emis_scale
     end do
 
     do imode=1,numberOfSaltModes

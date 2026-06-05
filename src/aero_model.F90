@@ -44,6 +44,7 @@ module aero_model
   use oslo_aero_share,          only: lifeCycleNumberMedianRadius, rhopart, lifeCycleSigma
   use oslo_aero_share,          only: l_so4_a2, l_bc_n, l_bc_ax, l_dms, l_isoprene, l_monoterp
   use oslo_aero_share,          only: MODE_IDX_BC_NUC, MODE_IDX_BC_EXT_AC
+  use oslo_aero_condtend,       only: oslo_aero_condtend_readnl
   use oslo_aero_share,          only: getNumberofTracersInMode, getCloudTracerIndexDirect, getCloudTracerName
   use oslo_aero_share,          only: getTracerIndex
   use oslo_aero_control,        only: oslo_aero_ctl_readnl, use_aerocom
@@ -61,6 +62,8 @@ module aero_model
   use oslo_aero_aerodry_tables, only: initdry
   use oslo_aero_aerocom_tables, only: initaeropt
   use oslo_aero_logn_tables,    only: initlogn
+
+  use modal_aero_wateruptake, only: modal_strat_sulfate
 
   implicit none
   private
@@ -104,15 +107,15 @@ module aero_model
   real(r8) :: sol_facti_cloud_borne   = 1._r8
   real(r8) :: sol_factb_interstitial  = 0.1_r8
   real(r8) :: sol_factic_interstitial = 0.4_r8
-  real(r8) :: seasalt_emis_scale = 1._r8 
+  real(r8) :: seasalt_emis_scale = 1._r8
+  real(r8) :: dms_emis_scale = 1._r8
 !=============================================================================
 contains
 !=============================================================================
 
   subroutine aero_model_readnl(nlfilename)
-    ! OSLO_AERO begin
+
     use oslo_aero_dust,   only: oslo_aero_dust_readnl
-    ! OSLO_AERO end
 
     ! read aerosol namelist options
 
@@ -122,12 +125,12 @@ contains
     integer :: unitn, ierr
     character(len=*), parameter :: subname = 'aero_model_readnl'
 
-    namelist /aerosol_nl/ sol_facti_cloud_borne, sol_factb_interstitial, sol_factic_interstitial, seasalt_emis_scale 
+    namelist /aerosol_nl/ sol_facti_cloud_borne, sol_factb_interstitial, sol_factic_interstitial, seasalt_emis_scale,  dms_emis_scale 
     !-----------------------------------------------------------------------------
 
     ! Read namelist
     if (masterproc) then
-       open(newunit=unitn, file=trim(nlfilename), status='old' )
+       open(newunit=unitn, file=trim(nlfilename), status='old')
        call find_group_name(unitn, 'aerosol_nl', status=ierr)
        if (ierr == 0) then
           read(unitn, aerosol_nl, iostat=ierr)
@@ -145,11 +148,11 @@ contains
     if (ierr /= mpi_success) call endrun(subname//" mpi_bcast: sol_factic_interstitial")
     call mpi_bcast(seasalt_emis_scale, 1, mpi_real8, mstrid, mpicom, ierr)
     if (ierr /= mpi_success) call endrun(subname//" mpi_bcast: seasalt_emis_scale")
+    call mpi_bcast(dms_emis_scale, 1, mpi_real8, mstrid, mpicom, ierr)
+    if (ierr /= mpi_success) call endrun(subname//" mpi_bcast: dms_emis_scale")
     call oslo_aero_ctl_readnl(nlfilename)
     call oslo_aero_microp_readnl(nlfilename)
-   ! OSLO_AERO begin
-   call oslo_aero_dust_readnl(nlfilename)
-   ! OSLO_AERO end
+    call oslo_aero_dust_readnl(nlfilename)
 
   end subroutine aero_model_readnl
 
@@ -249,8 +252,8 @@ contains
        call initaeropt()            ! table initialization
     end if
     call initializeCondensation()
-    call oslo_aero_ocean_init()
-    call oslo_aero_depos_init(pbuf2d)
+    call oslo_aero_ocean_init(dms_emis_scale)
+    call oslo_aero_depos_init(pbuf2d, sol_facti_cloud_borne, sol_factb_interstitial, sol_factic_interstitial)
     call oslo_aero_dust_init()
     call oslo_aero_seasalt_init(seasalt_emis_scale)
     call oslo_aero_wetdep_init()

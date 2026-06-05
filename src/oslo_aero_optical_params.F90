@@ -6,7 +6,7 @@ module oslo_aero_optical_params
   use shr_kind_mod,        only: r8 => shr_kind_r8
   use ppgrid,              only: pcols, pver, pverp
   use constituents,        only: pcnst
-  use cam_history,         only: outfld
+  use cam_history,         only: outfld hist_fld_active
   use physconst,           only: rair,pi
   use physics_types,       only: physics_state
   use wv_saturation,       only: qsat_water
@@ -71,6 +71,7 @@ contains
     logical  :: daylight(pcols)            ! SW calculations also at (polar) night in interpol* if daylight=.true.
     real(r8) :: aodvisvolc(pcols)          ! AOD vis for CMIP6 volcanic aerosol
     real(r8) :: absvisvolc(pcols)          ! AAOD vis for CMIP6 volcanic aerosol
+    real(r8) :: dod10um_du(pcols)          ! DOD at 10 um from dust, only enabled when aerocom is used
     real(r8) :: bevisvolc(pcols,pver)      ! Extinction in vis wavelength band for CMIP6 volcanic aerosol
     real(r8) :: rhum(pcols,pver)           ! (trimmed) relative humidity for the aerosol calculations
     real(r8) :: deltah_km(pcols,pver)      ! Layer thickness, unit km
@@ -125,6 +126,9 @@ contains
     real(r8) :: mmr_aerh2o(pcols,pver)
     real(r8) :: batotsw13(pcols,pver)
     real(r8) :: batotlw01(pcols,pver)
+    !
+    real(r8) :: batotlw_du(pcols,pver,nlwbands)  ! spectral aerosol absportion extinction in LW by dust
+    !
     real(r8) :: daerh2o(pcols)
     !-------------------------------------------------------------------------
 
@@ -466,13 +470,40 @@ contains
     end do  ! ncol
 
     ! LW Optical properties of total aerosol:
+    if hist_fld_active('DOD10UM_DU') then
+      do ib=1,nlwbands
+        do ilev=1,pver
+          do icol=1,ncol
+             batotlw_du(icol,ilev,ib)=0.0_r8
+          end do
+        end do
+      end do
+      do ib=1,nlwbands
+       do imode=6,7  ! dust modes only
+          do ilev=1,pver
+             do icol=1,ncol
+                balw(icol,ilev,imode,ib)=kalw(icol,ilev,imode,ib)*(be(icol,ilev,imode,4)/(ke(icol,ilev,imode,4)+eps))
+                batotlw_du(icol,ilev,ib)=batotlw_du(icol,ilev,ib)+Nnatk(icol,ilev,imode)*balw(icol,ilev,imode,ib)
+             end do
+          end do
+       end do
+      end do
+    
+      dod10um_du(:) =0.0_r8
+      do ilev=1,pver
+        do icol=1,ncol
+          dod10um_du(icol) = dod10um_du(icol)+batotlw_du(icol,ilev,11)*deltah_km(icol,ilev)
+        end do
+      end do
+      call outfld('DOD10UM_DU',dod10um_du,pcols,lchnk)
+    end if
     do ib=1,nlwbands
        do ilev=1,pver
           do icol=1,ncol
              batotlw(icol,ilev,ib)=0.0_r8
           end do
-       enddo
-    enddo
+       end do
+    end do
     do ib=1,nlwbands
        do imode=0,nmodes
           do ilev=1,pver
@@ -593,6 +624,8 @@ contains
        call outfld('AIRMASSL',airmassl,pcols,lchnk)
        call outfld('AIRMASS ',airmass ,pcols,lchnk)
 
+       ! LW extinction of Dust at ~ 10um
+    
        ! Mass concentration (ug/m3) and mmr (kg/kg) of aerosol condensed water
        ! Condensed water mmr (kg/kg)
        do ilev=1,pver
