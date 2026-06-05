@@ -6,7 +6,7 @@ module oslo_aero_optical_params
   use shr_kind_mod,        only: r8 => shr_kind_r8
   use ppgrid,              only: pcols, pver, pverp
   use constituents,        only: pcnst
-  use cam_history,         only: outfld hist_fld_active
+  use cam_history,         only: outfld, hist_fld_active
   use physconst,           only: rair,pi
   use physics_types,       only: physics_state
   use wv_saturation,       only: qsat_water
@@ -470,7 +470,7 @@ contains
     end do  ! ncol
 
     ! LW Optical properties of total aerosol:
-    if hist_fld_active('DOD10UM_DU') then
+    if (hist_fld_active('DOD10UM_DU')) then
       do ib=1,nlwbands
         do ilev=1,pver
           do icol=1,ncol

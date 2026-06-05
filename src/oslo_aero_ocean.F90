@@ -263,10 +263,10 @@ contains
        call outfld('odms', odms(:ncol), ncol, lchnk)
 
        cflx(:ncol,pndx_fdms) = flux(:ncol)
+    else
+       cflx(:ncol,pndx_fdms) = cflx(:ncol,pndx_fdms)*emis_scale
     end if
 
-    ! IF EMISSION FILE
-    ! return without changing cflx
 
   endsubroutine oslo_aero_dms_emis
 
