@@ -124,8 +124,8 @@ contains
    character(len=*), intent(in) :: nlfile
 
    ! Namelist variables
-   real :: oslo_aero_f_act_conv_interstitial = unset_r8 ! prescribed lifecycle of modes
-   real :: oslo_aero_f_act_conv_coarse_dust = unset_r8
+   real(r8) :: oslo_aero_f_act_conv_interstitial = unset_r8 ! prescribed lifecycle of modes
+   real(r8) :: oslo_aero_f_act_conv_coarse_dust = unset_r8
 
    integer :: unitn, ierr
    character(len=*), parameter :: subname='oslo_aero_depos_readnl'
