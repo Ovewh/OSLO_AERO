@@ -378,11 +378,13 @@ contains
          write(iulog,*) 'mode_dry_velocity_scale(',ind_mode,') = ', mode_dry_velocity_scale(ind_mode) ! add iulog
       end do
     end if
-    
-    do ind_mode = 0, nmodes
-      if(lifeCycleNumberMedianRadius(ind_mode) == unset_r8) call endrun(subname//": FATAL: lifeCycleNumberMedianRadius(ind_mode) is not set")
-      if(lifeCycleSigma(ind_mode) == unset_r8) call endrun(subname//": FATAL: lifeCycleSigma(ind_mode) is not set")
-    end do
+    if (masterproc) then
+      do ind_mode = 0, nmodes
+         if(lifeCycleNumberMedianRadius(ind_mode) == unset_r8) call endrun(subname//": FATAL: lifeCycleNumberMedianRadius(ind_mode) is not set")
+         if(lifeCycleSigma(ind_mode) == unset_r8) call endrun(subname//": FATAL: lifeCycleSigma(ind_mode) is not set")
+         if(mode_dry_velocity_scale(ind_mode) == unset_r8) call endrun(subname//": FATAL: mode_dry_velocity_scale(ind_mode) is not set")
+      end do
+   end if
 
 
   end subroutine oslo_aero_share_readnl
