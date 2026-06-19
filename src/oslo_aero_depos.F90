@@ -67,7 +67,7 @@ module oslo_aero_depos
   real(r8), parameter :: cmftau = 3600._r8
   real(r8), parameter :: molwta = 28.97_r8 ! molecular weight dry air gm/mole
   real(r8) :: f_act_conv_coarse_dust = unset_r8
-  real(r8) :: f_act_conv_interstitial = .8_r8 
+  real(r8) :: f_act_conv_interstitial = unset_r8
   type wetdep_inputs_t
      real(r8), pointer :: cldt(:,:)  => null()  ! cloud fraction
      real(r8), pointer :: qme(:,:)   => null()
@@ -786,8 +786,6 @@ contains
 
              f_act_conv = f_act_conv_interstitial
           else   ! cloud-borne aerosol (borne by stratiform cloud drops)
-             !default 100 % is scavenged by cloud -borne
-             sol_facti_cloud_borne = 1.0_r8
 
              sol_factb  = 0.0_r8                ! all below-cloud scav OFF (anything cloud-borne is located "in-cloud")
              sol_facti  = sol_facti_cloud_borne ! strat  in-cloud scav cloud-borne tuning factor
