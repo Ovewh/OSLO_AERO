@@ -169,6 +169,7 @@ contains
        qcw,    &
        qin,    &
        xphlwc, &
+       hplus,  &
        aqso4,  &
        aqh2so4,&
        aqso4_h2o2, &
@@ -213,6 +214,7 @@ contains
     use shr_drydep_mod,        only : dheff
     use physics_buffer,        only : physics_buffer_desc
     use rad_constituents,      only : rad_cnst_get_gas
+    use cam_history,           only : hist_fld_active
 
     !
     !-----------------------------------------------------------------------
@@ -235,6 +237,7 @@ contains
     real(r8), target, intent(inout) :: qcw(:,:,:)        ! cloud-borne aerosol (vmr)
     real(r8),         intent(inout) :: qin(:,:,:)        ! transported species ( vmr )
     real(r8),         intent(out)   :: xphlwc(:,:)       ! pH value multiplied by lwc
+    real(r8),         intent(out)   :: hplus(:,:)        ! aqueous-phase [H+] concentration (mol/dm3)
 
     real(r8),         intent(out)   :: aqso4(:,:)                   ! aqueous phase chemistry
     real(r8),         intent(out)   :: aqh2so4(:,:)                 ! aqueous phase chemistry
@@ -891,15 +894,20 @@ contains
           state, ncol, lchnk, loffset, dtime, mbar, pdel, press, tfld, cldnum, cldfrc, cfact, cldconc%xlwc, &
           xdelso4hp, xh2so4, xso4, xso4_init, nh3g, hno3g, xnh3, xhno3, xnh4c,  xno3c, xmsa, xso2, xh2o2, qcw, qin, &
           aqso4, aqh2so4, aqso4_h2o2, aqso4_o3, aqso4_h2o2_3d=aqso4_h2o2_3d, aqso4_o3_3d=aqso4_o3_3d )
-
+    
     xphlwc(:,:) = 0._r8
-    do k = 1, pver
-       do i = 1, ncol
-          if (cldfrc(i,k)>=1.e-5_r8 .and. lwc(i,k)>=1.e-8_r8) then
-             xphlwc(i,k) = -1._r8*log10(xph(i,k)) * lwc(i,k)
-          endif
+    hplus(:,:)  = 0._r8
+    ! Only fill the diagnostics if at least one of them is on a history file
+    if (hist_fld_active('XPH_LWC') .or. hist_fld_active('HPLUS')) then
+       do k = 1, pver
+          do i = 1, ncol
+             if (cldfrc(i,k)>=1.e-5_r8 .and. lwc(i,k)>=1.e-8_r8) then
+                xphlwc(i,k) = -1._r8*log10(xph(i,k)) * lwc(i,k)
+                hplus(i,k)  = xph(i,k)   ! in-cloud aqueous [H+] (mol/dm3)
+             endif
+          end do
        end do
-    end do
+    end if
 
     call sox_cldaero_destroy_obj(cldconc)
 

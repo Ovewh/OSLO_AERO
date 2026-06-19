@@ -346,11 +346,13 @@ contains
     end if
 
     call addfld( 'XPH_LWC',    (/ 'lev' /), 'A','kg/kg',   'pH value multiplied by lwc')
+    call addfld( 'HPLUS',      (/ 'lev' /), 'A','mol/dm3', 'in-cloud aqueous-phase H+ concentration')
     call addfld ('AQSO4_H2O2', horiz_only,  'A','kg/m2/s', 'SO4 aqueous phase chemistry due to H2O2')
     call addfld ('AQSO4_O3',   horiz_only,  'A','kg/m2/s', 'SO4 aqueous phase chemistry due to O3')
 
     if ( history_aerosol ) then
        call add_default ('XPH_LWC', 1, ' ')
+       call add_default ('HPLUS', 1, ' ')
        call add_default ('AQSO4_H2O2', 1, ' ')
        call add_default ('AQSO4_O3', 1, ' ')
     endif
@@ -558,6 +560,7 @@ contains
     real(r8) :: aqso4_h2o2(ncol)             ! SO4 aqueous phase chemistry due to H2O2
     real(r8) :: aqso4_o3(ncol)               ! SO4 aqueous phase chemistry due to O3
     real(r8) :: xphlwc(ncol,pver)            ! pH value multiplied by lwc
+    real(r8) :: hplus(ncol,pver)             ! in-cloud aqueous-phase [H+] (mol/dm3)
     real(r8) :: delt_inverse                 ! 1 / timestep
     real(r8), pointer :: pblh(:)
     character(len=32) :: name
@@ -638,12 +641,13 @@ contains
 
     ! aqueous chemistry ...
     call setsox( state, pbuf, ncol, lchnk, loffset, delt, pmid, pdel, tfld, mbar, &
-         cwat, cldfr, cldnum, invariants, vmrcw, vmr, xphlwc, &
+         cwat, cldfr, cldnum, invariants, vmrcw, vmr, xphlwc, hplus, &
          aqso4, aqh2so4, aqso4_h2o2, aqso4_o3)
 
     call outfld( 'AQSO4_H2O2', aqso4_h2o2(:ncol), ncol, lchnk)
     call outfld( 'AQSO4_O3',   aqso4_o3(:ncol),   ncol, lchnk)
     call outfld( 'XPH_LWC',    xphlwc(:ncol,:),   ncol, lchnk )
+    call outfld( 'HPLUS',      hplus(:ncol,:),    ncol, lchnk )
 
     ! vmr tendency from aqchem and soa routines
     dvmrdt_sv1 = (vmr - dvmrdt_sv1)/delt
