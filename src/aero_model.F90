@@ -775,11 +775,14 @@ contains
     else
        call cnst_get_ind('DMS', pndx_fdms, abort=.true.)
        do icol = 1,state%ncol
-          cam_in%cflx(icol,pndx_fdms) = cam_in%fdms(icol)
-          ! The addfld call for 'odms' below is in the routine
-          ! oslo_aero_ocean_init in module oslo_aero_ocean.F90.
-          call outfld('odms', cam_in%fdms(:state%ncol), state%ncol, state%lchnk)
+          ! Apply dms_emis_scale here too, so the scaling is honoured for
+          ! every DMS source (lana/kettle/emission_file are scaled inside
+          ! oslo_aero_dms_emis; the coupled-ocean flux is scaled here).
+          cam_in%cflx(icol,pndx_fdms) = cam_in%fdms(icol) * dms_emis_scale
        end do
+       ! The addfld call for 'odms' below is in the routine
+       ! oslo_aero_ocean_init in module oslo_aero_ocean.F90.
+       call outfld('odms', cam_in%fdms(:state%ncol), state%ncol, state%lchnk)
     end if
 
   end subroutine aero_model_emissions
