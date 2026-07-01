@@ -31,6 +31,8 @@ module oslo_aero_control
   logical, public, protected :: use_aerocom = .false. ! If true, turn on aerocom output
   logical, public, protected :: no_rad_dust_active = .false. !If true turn off extinction from dust
 
+  
+  real(r8), public, protected :: rh_fine_aer_scale_fact_optics = 1.0_r8
   ! Private Namelist variables:
   real(r8)          :: volc_fraction_coarse = 0.0_r8  !Fraction of volcanic aerosols in coarse mode
   character(len=dir_string_length) :: aerotab_table_dir = unset_str
@@ -62,7 +64,7 @@ contains
     namelist /oslo_ctl_nl/ volc_fraction_coarse, aerotab_table_dir, dms_source, &
                            dms_source_type, opom_source, opom_source_type, &
                            ocean_filename, ocean_filepath, dms_cycle_year, opom_cycle_year, &
-                           use_aerocom, no_rad_dust_active
+                           use_aerocom, no_rad_dust_active, rh_fine_aer_scale_fact_optics
     !-----------------------------------------------------------------------------
 
     if (masterproc) then
@@ -81,7 +83,7 @@ contains
     call mpi_bcast(use_aerocom, 1 , mpi_logical, mstrid, mpicom, ierr)
     if (ierr /= mpi_success) call endrun(subname//" mpi_bcast: use_aerocom")
 
-    call  mpi_bcast(use_aerocom, 1 , mpi_logical, mstrid, mpicom, ierr)
+    call  mpi_bcast(no_rad_dust_active, 1 , mpi_logical, mstrid, mpicom, ierr)
     if (ierr /= mpi_success) call endrun(subname//" mpi_bcast: no_rad_dust_active")
 
     call mpi_bcast(volc_fraction_coarse, 1 , mpi_real8, mstrid, mpicom, ierr)
@@ -110,6 +112,11 @@ contains
     if (ierr /= mpi_success) call endrun(subname//" mpi_bcast: ocean_filename")
     call mpi_bcast(ocean_filepath, len(ocean_filepath), mpi_character, mstrid, mpicom, ierr)
     if (ierr /= mpi_success) call endrun(subname//" mpi_bcast: ocean_filepath")
+
+    ! Relhum scaling in the optics for tuning of aerosol optical depth
+    call mpi_bcast(rh_fine_aer_scale_fact_optics, 1, mpi_real8, mstrid, mpicom, ierr)
+    if (ierr /= mpi_success) call endrun(subname//" mpi_bcast: rh_fine_aer_scale_fact_optics")
+
 
     ! Reset dms_source if ocean is sending dms to atm
     if (dms_from_ocn) then
