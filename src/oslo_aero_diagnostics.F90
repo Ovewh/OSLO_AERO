@@ -29,7 +29,7 @@ contains
       call addfld ('CABSVIS ',horiz_only,  'A','unitless' ,'Clear air aerosol absorptive optical depth')
       call addfld ('CLDFREE ',horiz_only,  'A','unitless' ,'Cloud free fraction wrt CAODVIS and CABSVIS')
       call addfld ('DAYFOC  ',horiz_only,  'A','unitless' ,'Daylight fraction')
-      call addfld ('N_AER   ',(/'lev'/),   'A', 'unitless','Aerosol number concentration')
+      call addfld ('N_AER   ',(/'lev'/),   'A','1/cm3   ' ,'Aerosol number concentration')
       call addfld ('SSAVIS  ',(/'lev'/),   'A','unitless' ,'Aerosol single scattering albedo in visible wavelength band')
       call addfld ('ASYMMVIS',(/'lev'/),   'A','unitless' ,'Aerosol assymetry factor in visible wavelength band')
       call addfld ('EXTVIS  ',(/'lev'/),   'A','1/km    ' ,'Aerosol extinction')
@@ -106,6 +106,8 @@ contains
          call addfld ('AKCXS   ',horiz_only, 'A','mg/m2   ','Scheme excess aerosol mass burden')
          call addfld ('PMTOT   ',horiz_only, 'A','ug/m3   ','Aerosol PM, all sizes')
          call addfld ('PM25    ',horiz_only, 'A','ug/m3   ','Aerosol PM2.5')
+
+         call addfld ('DELTAH  ',(/'lev'/), 'A', 'km      ','Layer thickness in km')
 
          call addfld ('PM2P5   ',(/'lev'/), 'A','ug/m3   ','3D aerosol PM2.5')
          call addfld ('MMRPM2P5',(/'lev'/), 'A','kg/kg   ','3D aerosol PM2.5 mass mixing ratio')
@@ -262,7 +264,6 @@ contains
                call addfld(varName, horiz_only, 'A', 'unitless', 'relative exessive added mass column for mode'//trim(varname))
             end if
          enddo
-
          call add_default ('AKCXS   ', 1, ' ')
          call add_default ('PMTOT   ', 1, ' ')
          call add_default ('PM25    ', 1, ' ')
@@ -270,6 +271,7 @@ contains
          call add_default ('MMRPM2P5', 1, ' ')
          call add_default ('MMRPM1  ', 1, ' ')
          call add_default ('GRIDAREA', 1, ' ')
+         call add_default ('DELTAH  ', 1, ' ')
          call add_default ('DAERH2O ', 1, ' ')
          call add_default ('MMR_AH2O', 1, ' ')
          call add_default ('ECDRYAER', 1, ' ')
