@@ -44,6 +44,8 @@ module aero_model
   use oslo_aero_share,          only: lifeCycleNumberMedianRadius, rhopart, lifeCycleSigma
   use oslo_aero_share,          only: l_so4_a2, l_bc_n, l_bc_ax, l_dms, l_isoprene, l_monoterp
   use oslo_aero_share,          only: MODE_IDX_BC_NUC, MODE_IDX_BC_EXT_AC
+  use oslo_aero_share,          only: oslo_aero_share_readnl
+  use oslo_aero_condtend,       only: oslo_aero_condtend_readnl
   use oslo_aero_share,          only: getNumberofTracersInMode, getCloudTracerIndexDirect, getCloudTracerName
   use oslo_aero_share,          only: getTracerIndex
   use oslo_aero_control,        only: oslo_aero_ctl_readnl, use_aerocom
@@ -61,6 +63,8 @@ module aero_model
   use oslo_aero_aerodry_tables, only: initdry
   use oslo_aero_aerocom_tables, only: initaeropt
   use oslo_aero_logn_tables,    only: initlogn
+
+  use modal_aero_wateruptake, only: modal_strat_sulfate
 
   implicit none
   private
@@ -104,15 +108,15 @@ module aero_model
   real(r8) :: sol_facti_cloud_borne   = 1._r8
   real(r8) :: sol_factb_interstitial  = 0.1_r8
   real(r8) :: sol_factic_interstitial = 0.4_r8
-  real(r8) :: seasalt_emis_scale = 1._r8 
+  real(r8) :: seasalt_emis_scale = 1._r8
+  real(r8) :: dms_emis_scale = 1._r8
 !=============================================================================
 contains
 !=============================================================================
 
   subroutine aero_model_readnl(nlfilename)
-    ! OSLO_AERO begin
+
     use oslo_aero_dust,   only: oslo_aero_dust_readnl
-    ! OSLO_AERO end
 
     ! read aerosol namelist options
 
@@ -122,12 +126,12 @@ contains
     integer :: unitn, ierr
     character(len=*), parameter :: subname = 'aero_model_readnl'
 
-    namelist /aerosol_nl/ sol_facti_cloud_borne, sol_factb_interstitial, sol_factic_interstitial, seasalt_emis_scale 
+    namelist /aerosol_nl/ sol_facti_cloud_borne, sol_factb_interstitial, sol_factic_interstitial, seasalt_emis_scale,  dms_emis_scale 
     !-----------------------------------------------------------------------------
 
     ! Read namelist
     if (masterproc) then
-       open(newunit=unitn, file=trim(nlfilename), status='old' )
+       open(newunit=unitn, file=trim(nlfilename), status='old')
        call find_group_name(unitn, 'aerosol_nl', status=ierr)
        if (ierr == 0) then
           read(unitn, aerosol_nl, iostat=ierr)
@@ -145,11 +149,12 @@ contains
     if (ierr /= mpi_success) call endrun(subname//" mpi_bcast: sol_factic_interstitial")
     call mpi_bcast(seasalt_emis_scale, 1, mpi_real8, mstrid, mpicom, ierr)
     if (ierr /= mpi_success) call endrun(subname//" mpi_bcast: seasalt_emis_scale")
+    call mpi_bcast(dms_emis_scale, 1, mpi_real8, mstrid, mpicom, ierr)
+    if (ierr /= mpi_success) call endrun(subname//" mpi_bcast: dms_emis_scale")
     call oslo_aero_ctl_readnl(nlfilename)
     call oslo_aero_microp_readnl(nlfilename)
-   ! OSLO_AERO begin
-   call oslo_aero_dust_readnl(nlfilename)
-   ! OSLO_AERO end
+    call oslo_aero_dust_readnl(nlfilename)
+    call oslo_aero_share_readnl(nlfilename)
 
   end subroutine aero_model_readnl
 
@@ -249,8 +254,8 @@ contains
        call initaeropt()            ! table initialization
     end if
     call initializeCondensation()
-    call oslo_aero_ocean_init()
-    call oslo_aero_depos_init(pbuf2d)
+    call oslo_aero_ocean_init(dms_emis_scale)
+    call oslo_aero_depos_init(pbuf2d, sol_facti_cloud_borne, sol_factb_interstitial, sol_factic_interstitial)
     call oslo_aero_dust_init()
     call oslo_aero_seasalt_init(seasalt_emis_scale)
     call oslo_aero_wetdep_init()
@@ -341,11 +346,13 @@ contains
     end if
 
     call addfld( 'XPH_LWC',    (/ 'lev' /), 'A','kg/kg',   'pH value multiplied by lwc')
+    call addfld( 'HPLUS',      (/ 'lev' /), 'A','mol/dm3', 'in-cloud aqueous-phase H+ concentration')
     call addfld ('AQSO4_H2O2', horiz_only,  'A','kg/m2/s', 'SO4 aqueous phase chemistry due to H2O2')
     call addfld ('AQSO4_O3',   horiz_only,  'A','kg/m2/s', 'SO4 aqueous phase chemistry due to O3')
 
     if ( history_aerosol ) then
        call add_default ('XPH_LWC', 1, ' ')
+       call add_default ('HPLUS', 1, ' ')
        call add_default ('AQSO4_H2O2', 1, ' ')
        call add_default ('AQSO4_O3', 1, ' ')
     endif
@@ -553,6 +560,7 @@ contains
     real(r8) :: aqso4_h2o2(ncol)             ! SO4 aqueous phase chemistry due to H2O2
     real(r8) :: aqso4_o3(ncol)               ! SO4 aqueous phase chemistry due to O3
     real(r8) :: xphlwc(ncol,pver)            ! pH value multiplied by lwc
+    real(r8) :: hplus(ncol,pver)             ! in-cloud aqueous-phase [H+] (mol/dm3)
     real(r8) :: delt_inverse                 ! 1 / timestep
     real(r8), pointer :: pblh(:)
     character(len=32) :: name
@@ -633,12 +641,13 @@ contains
 
     ! aqueous chemistry ...
     call setsox( state, pbuf, ncol, lchnk, loffset, delt, pmid, pdel, tfld, mbar, &
-         cwat, cldfr, cldnum, invariants, vmrcw, vmr, xphlwc, &
+         cwat, cldfr, cldnum, invariants, vmrcw, vmr, xphlwc, hplus, &
          aqso4, aqh2so4, aqso4_h2o2, aqso4_o3)
 
     call outfld( 'AQSO4_H2O2', aqso4_h2o2(:ncol), ncol, lchnk)
     call outfld( 'AQSO4_O3',   aqso4_o3(:ncol),   ncol, lchnk)
     call outfld( 'XPH_LWC',    xphlwc(:ncol,:),   ncol, lchnk )
+    call outfld( 'HPLUS',      hplus(:ncol,:),    ncol, lchnk )
 
     ! vmr tendency from aqchem and soa routines
     dvmrdt_sv1 = (vmr - dvmrdt_sv1)/delt
@@ -766,11 +775,14 @@ contains
     else
        call cnst_get_ind('DMS', pndx_fdms, abort=.true.)
        do icol = 1,state%ncol
-          cam_in%cflx(icol,pndx_fdms) = cam_in%fdms(icol)
-          ! The addfld call for 'odms' below is in the routine
-          ! oslo_aero_ocean_init in module oslo_aero_ocean.F90.
-          call outfld('odms', cam_in%fdms(:state%ncol), state%ncol, state%lchnk)
+          ! Apply dms_emis_scale here too, so the scaling is honoured for
+          ! every DMS source (lana/kettle/emission_file are scaled inside
+          ! oslo_aero_dms_emis; the coupled-ocean flux is scaled here).
+          cam_in%cflx(icol,pndx_fdms) = cam_in%fdms(icol) * dms_emis_scale
        end do
+       ! The addfld call for 'odms' below is in the routine
+       ! oslo_aero_ocean_init in module oslo_aero_ocean.F90.
+       call outfld('odms', cam_in%fdms(:state%ncol), state%ncol, state%lchnk)
     end if
 
   end subroutine aero_model_emissions

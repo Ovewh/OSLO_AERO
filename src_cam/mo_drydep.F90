@@ -199,7 +199,6 @@ contains
     !   ... initialize
     !-------------------------------------------------------------------------------------
     dvelocity(:,:) = 0._r8
-
     !-------------------------------------------------------------------------------------
     !   ... compute the dep velocities over ocean and sea ice
     !       land type 7 is used for ocean

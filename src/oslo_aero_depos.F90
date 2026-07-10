@@ -7,6 +7,8 @@ module oslo_aero_depos
   !------------------------------------------------------------------------------------------------
 
   use shr_kind_mod,            only: r8 => shr_kind_r8
+  use spmd_utils,              only: mpicom, mstrid=>masterprocid, masterproc
+  use spmd_utils,              only: mpi_logical, mpi_real8, mpi_character, mpi_integer,  mpi_success
   use ppgrid,                  only: pcols, pver, pverp, begchunk, endchunk
   use constituents,            only: pcnst, cnst_name, cnst_get_ind
   use phys_control,            only: phys_getopts, cam_physpkg_is
@@ -28,7 +30,7 @@ module oslo_aero_depos
   !
   use oslo_aero_share,         only: nmodes, max_tracers_per_mode
   use oslo_aero_share,         only: numberOfProcessModeTracers, getNumberOfTracersInMode, getTracerIndex
-  use oslo_aero_share,         only: is_process_mode, processModeMap, processModeSigma, lifeCycleSigma
+  use oslo_aero_share,         only: is_process_mode, processModeMap, processModeSigma, lifeCycleSigma, mode_dry_velocity_scale
   use oslo_aero_share,         only: belowCloudScavengingCoefficientProcessModes, belowCloudScavengingCoefficient
   use oslo_aero_share,         only: getCloudTracerIndex, GetCloudTracerIndexDirect, getCloudTracerName, qqcw_get_field
   use oslo_aero_share,         only: aerosol_type_name, N_AEROSOL_TYPES, aerosolType, AEROSOL_TYPE_SULFATE
@@ -58,11 +60,14 @@ module oslo_aero_depos
   private :: wetdepg     ! scavenging of gas phase constituents by henry's law
   private :: clddiag     ! calc of cloudy volume and rain mixing ratio
 
-  real(r8), public :: sol_facti_cloud_borne
-
+  real(r8) :: sol_facti_cloud_borne  = huge(1.0_r8) ! strat in-cloud scav cloud-borne tuning factor
+  real(r8) :: sol_factb_interstitial = huge(1.0_r8) ! below-cloud scavenging coefficient for interstitial aerosols
+  real(r8) :: sol_factic_interstitial = huge(1.0_r8) ! in-cloud scavenging coefficient for interstitial aerosols
+  real(r8), parameter, private :: unset_r8 = huge(1.0_r8)
   real(r8), parameter :: cmftau = 3600._r8
   real(r8), parameter :: molwta = 28.97_r8 ! molecular weight dry air gm/mole
-
+  real(r8) :: f_act_conv_coarse_dust = unset_r8
+  real(r8) :: f_act_conv_interstitial = unset_r8
   type wetdep_inputs_t
      real(r8), pointer :: cldt(:,:)  => null()  ! cloud fraction
      real(r8), pointer :: qme(:,:)   => null()
@@ -113,14 +118,61 @@ contains
       call pbuf_add_field('WD_A_H2SO4', 'global', dtype_r8, (/pcols/), idx_wd_a_h2so4)
    end subroutine oslo_aero_depos_register
 
-  subroutine oslo_aero_depos_init( pbuf2d )
+  subroutine oslo_aero_depos_readnl(nlfile)
+   
+   use namelist_utils, only: find_group_name
+   character(len=*), intent(in) :: nlfile
+
+   ! Namelist variables
+   real(r8) :: oslo_aero_f_act_conv_interstitial = unset_r8 ! prescribed lifecycle of modes
+   real(r8) :: oslo_aero_f_act_conv_coarse_dust = unset_r8
+
+   integer :: unitn, ierr
+   character(len=*), parameter :: subname='oslo_aero_depos_readnl'
+
+   namelist /oslo_aero_depos_nl/ oslo_aero_f_act_conv_coarse_dust, oslo_aero_f_act_conv_interstitial
+   !-----------------------------------------------------------------------
+   
+   if (masterproc) then
+      open(newunit=unitn, file=trim(nlfile), status='old')
+      call find_group_name(unitn, 'oslo_aero_depos', status=ierr)
+      if (ierr==0) then
+         read(unitn, oslo_aero_depos_nl, iostat=ierr)
+         if (ierr /= 0) then
+            call endrun(subname // ': ERROR reading namelist')
+         end if
+      end if
+      close(unitn)
+   end if
+
+   call mpi_bcast(oslo_aero_f_act_conv_coarse_dust,1, mpi_real8,mstrid,mpicom, ierr)
+   if (ierr /= mpi_success) call endrun(subname // ': mpi_bcast oslo_aero_f_act_conv_coarse_dust')
+   if (oslo_aero_f_act_conv_coarse_dust == huge(1.0_r8)) call endrun(subname // ': ERROR oslo_aero_f_act_conv_coarse_dust not set in namelist')
+   f_act_conv_coarse_dust = oslo_aero_f_act_conv_coarse_dust
+   call mpi_bcast(oslo_aero_f_act_conv_interstitial,1, mpi_real8,mstrid,mpicom, ierr)
+   if (ierr /= mpi_success) call endrun(subname // ': mpi_bcast oslo_aero_f_act_conv_interstitial')
+
+   f_act_conv_interstitial= oslo_aero_f_act_conv_interstitial
+   if (f_act_conv_interstitial == huge(1.0_r8)) call endrun(subname // ': ERROR f_act_conv_interstitial not set in namelist')
+
+   if (masterproc) then
+      write(iulog,*) 'oslo_aero_depos_readnl: f_act_conv_coarse_dust = ', f_act_conv_coarse_dust
+      write(iulog,*) 'oslo_aero_depos_readnl: f_act_conv_interstitial = ', f_act_conv_interstitial
+   end if
+
+  end subroutine oslo_aero_depos_readnl
+
+  subroutine oslo_aero_depos_init(pbuf2d, sol_facti_cloud_borne_in, sol_factb_interstitial_in, sol_factic_interstitial_in)
     use time_manager,   only: is_first_step
     use physics_buffer, only: pbuf_set_field
 
-    ! Set oslo aeroslo deposition history output
+    ! Set oslo aerosol deposition history output
 
     ! arguments
     type(physics_buffer_desc), pointer :: pbuf2d(:,:)
+    real(r8), intent(in) :: sol_facti_cloud_borne_in  ! strat in-cloud scav cloud-borne tuning factor
+    real(r8), intent(in) :: sol_factb_interstitial_in ! below-cloud scavenging coefficient for interstitial aerosols
+    real(r8), intent(in) :: sol_factic_interstitial_in ! in-cloud scavenging coefficient for interstitial aerosols
 
     ! local variables
     integer            :: imode, itrac
@@ -134,6 +186,10 @@ contains
     character(len=100) :: aName              ! tracer name
     logical            :: is_in_output(pcnst)
     !-----------------------------------------------------------------------
+
+    sol_facti_cloud_borne  = sol_facti_cloud_borne_in
+    sol_factb_interstitial = sol_factb_interstitial_in
+    sol_factic_interstitial = sol_factic_interstitial_in
 
     fracis_idx      = pbuf_get_index('FRACIS')
     prain_idx       = pbuf_get_index('PRAIN')
@@ -413,7 +469,7 @@ contains
     jvlc = 4
     call oslo_aero_depvel_part( ncol, t(:,:), pmid(:,:), ram1, fv,  &
          vlc_dry(:,:,jvlc), vlc_trb(:,jvlc), vlc_grv(:,:,jvlc),  &
-         rad_drop(:,:), dens_drop(:,:), sg_drop(:,:), 3, lchnk)
+         rad_drop(:,:), dens_drop(:,:), sg_drop(:,:), 3, 1.0_r8, lchnk)
 
     !At this point we really need to distribute the lifecycle-tracers over
     !the actual modes (maybe according to surface available of background tracers?)
@@ -450,7 +506,7 @@ contains
              jvlc = 2
              call oslo_aero_depvel_part( ncol, t(:,:), pmid(:,:), ram1, fv,  &
                   vlc_dry(:,:,jvlc), vlc_trb(:,jvlc), vlc_grv(:,:,jvlc),  &
-                  rad_aer(:,:), dens_aer(:,:), sg_aer(:,:), 3, lchnk)
+                  rad_aer(:,:), dens_aer(:,:), sg_aer(:,:), 3, mode_dry_velocity_scale(imode), lchnk)
           end if
 
           do lspec = 1, num_tracers_in_mode(imode)   ! loop over number + constituents
@@ -478,7 +534,7 @@ contains
 
                    call oslo_aero_depvel_part( ncol, t(:,:), pmid(:,:), ram1, fv,  &
                         vlc_dry(:,:,jvlc), vlc_trb(:,jvlc), vlc_grv(:,:,jvlc),  &
-                        rad_aer(:,:), dens_aer(:,:), sg_aer(:,:), 3, lchnk)
+                        rad_aer(:,:), dens_aer(:,:), sg_aer(:,:), 3, 1.0_r8, lchnk)
                 endif
              else
                 jvlc = 4              !mass in cloud tracers
@@ -685,7 +741,7 @@ contains
     ! calculate the mass-weighted sol_factic for coarse mode species
     !    sol_factic_coarse(:,:) = 0.30_r8   ! tuned 1/4
     f_act_conv_coarse(:,:) = 0.60_r8   ! rce 2010/05/02
-    f_act_conv_coarse_dust = 0.40_r8   ! rce 2010/05/02
+    f_act_conv_coarse_dust = f_act_conv_coarse_dust  ! rce 2010/05/02
     f_act_conv_coarse_nacl = 0.80_r8   ! rce 2010/05/02
     f_act_conv_coarse(:,:) = 0.5_r8
 
@@ -720,18 +776,16 @@ contains
 
              scavcoefnv(:,:,1) = 0.1_r8  !Used by MAM for number concentration
 
-             sol_factb  = 0.1_r8   ! all below-cloud scav ON (0.1 "tuning factor")
+             sol_factb  = sol_factb_interstitial   ! all below-cloud scav ON (0.1 "tuning factor")
              ! sol_factb  = 0.03_r8   ! all below-cloud scav ON (0.1 "tuning factor")  ! tuned 1/6
 
              sol_facti  = 0.0_r8   ! strat  in-cloud scav totally OFF for institial
 
-             sol_factic = 0.4_r8      ! xl 2010/05/20
+             sol_factic =  sol_factic_interstitial     ! xl 2010/05/20
 
-             !fxm: simplified relative to MAM
-             f_act_conv = 0.8 !ag: Introduce tuning per component later
+
+             f_act_conv = f_act_conv_interstitial
           else   ! cloud-borne aerosol (borne by stratiform cloud drops)
-             !default 100 % is scavenged by cloud -borne
-             sol_facti_cloud_borne = 1.0_r8
 
              sol_factb  = 0.0_r8                ! all below-cloud scav OFF (anything cloud-borne is located "in-cloud")
              sol_facti  = sol_facti_cloud_borne ! strat  in-cloud scav cloud-borne tuning factor
@@ -981,7 +1035,7 @@ contains
 
   !===============================================================================
   subroutine oslo_aero_depvel_part( ncol, t, pmid, ram1, fv, vlc_dry, vlc_trb, vlc_grv,  &
-       radius_part, density_part, sig_part, moment, lchnk )
+       radius_part, density_part, sig_part, moment, velocity_scale_fact, lchnk )
 
     !    calculates surface deposition velocity of particles
     !    L. Zhang, S. Gong, J. Padro, and L. Barrie
@@ -998,6 +1052,7 @@ contains
     real(r8), intent(in) :: radius_part(pcols,pver)    ! mean (volume/number) particle radius (m)
     real(r8), intent(in) :: density_part(pcols,pver)   ! density of particle material (kg/m3)
     real(r8), intent(in) :: sig_part(pcols,pver)       ! geometric standard deviation of particles
+    real(r8), intent(in) :: velocity_scale_fact
     integer,  intent(in) :: moment ! moment of size distribution (0 for number, 2 for surface area, 3 for volume)
     integer,  intent(in) :: ncol
     integer,  intent(in) :: lchnk
@@ -1103,7 +1158,7 @@ contains
                gravit*slp_crc(icol,ilev) / vsc_dyn_atm(icol,ilev) ![m s-1] Stokes' settling velocity SeP97 p. 466
           vlc_grv(icol,ilev) = vlc_grv(icol,ilev) * dispersion
 
-          vlc_dry(icol,ilev)=vlc_grv(icol,ilev)
+          vlc_dry(icol,ilev)=vlc_grv(icol,ilev)*velocity_scale_fact
        enddo
     enddo
     ilev=pver  ! only look at bottom level for next part
@@ -1143,8 +1198,8 @@ contains
              wrk3 = wrk3 + lnd_frc*( wrk1 + vlc_grv(icol,ilev) )
           endif
        enddo  ! n_land_type
-       vlc_trb(icol) = wrk2
-       vlc_dry(icol,ilev) = wrk3
+       vlc_trb(icol) = wrk2*velocity_scale_fact
+       vlc_dry(icol,ilev) = wrk3*velocity_scale_fact
     enddo !ncol
 
   end subroutine oslo_aero_depvel_part
