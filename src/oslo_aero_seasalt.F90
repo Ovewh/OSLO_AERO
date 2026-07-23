@@ -27,6 +27,9 @@ module oslo_aero_seasalt
   integer :: modeMap(numberOfSaltModes)    ! [idx] which modes are we modifying
   integer :: tracerMap(numberOfSaltModes)  ! [idx] which tracers are we modifying
 
+  ! Scaling of emissions: (/ SS_A1, SS_A2, SS_A3 /), set via namelist in oslo_aero_seasalt_init
+  real(r8) :: factorlist(numberOfSaltModes) = (/ 0.5_r8, 0.5_r8, 0.75_r8 /)
+
   public :: oslo_aero_seasalt_init
   public :: oslo_aero_seasalt_emis
 
@@ -37,8 +40,11 @@ module oslo_aero_seasalt
 contains
 !===============================================================================
 
-  subroutine oslo_aero_seasalt_init(seasalt_emis_scale)
+  subroutine oslo_aero_seasalt_init(seasalt_emis_scale, emi_ss_ait, emi_ss_acc, emi_ss_coarse)
     real(r8), intent(in) :: seasalt_emis_scale
+    real(r8), intent(in) :: emi_ss_ait    ! [-] emission scaling factor for SS_A1 (fine/Aitken mode)
+    real(r8), intent(in) :: emi_ss_acc    ! [-] emission scaling factor for SS_A2 (accumulation mode)
+    real(r8), intent(in) :: emi_ss_coarse ! [-] emission scaling factor for SS_A3 (coarse mode)
     integer :: imode
 
     modeMap(1) = MODE_IDX_SS_A1
@@ -55,6 +61,7 @@ contains
     end do
 
     emis_scale = seasalt_emis_scale
+    factorlist = (/ emi_ss_ait, emi_ss_acc, emi_ss_coarse /)
 
   end subroutine oslo_aero_seasalt_init
 
@@ -97,9 +104,6 @@ contains
     !updated value for Salter et al. sea-salt treatment, which gives global annual SS_A1 emissions of
     !2.663 instead of 0.153 ng m-2 s-1 (i.e. ca 17 times more than the old sea-salt treatment):
     real(r8), parameter :: seasaltToSpracklenOM2 = 3.03_r8*0.153_r8/2.663_r8
-    
-    ! Scaling of emissions
-    real(r8), parameter :: factorlist(numberOfSaltModes) = (/ 0.5_r8, 0.5_r8, 0.75_r8 /)
     !-----------------------------------------------------------------------
    
     ! start with midpoint wind speed

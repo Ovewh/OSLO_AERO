@@ -110,6 +110,9 @@ module aero_model
   real(r8) :: sol_factic_interstitial = 0.4_r8
   real(r8) :: seasalt_emis_scale = 1._r8
   real(r8) :: dms_emis_scale = 1._r8
+  real(r8) :: emi_ss_ait    = 0.5_r8  ! [-] emission scaling factor for SS_A1 (fine/Aitken mode)
+  real(r8) :: emi_ss_acc    = 0.5_r8  ! [-] emission scaling factor for SS_A2 (accumulation mode)
+  real(r8) :: emi_ss_coarse = 0.75_r8 ! [-] emission scaling factor for SS_A3 (coarse mode)
 !=============================================================================
 contains
 !=============================================================================
@@ -126,7 +129,8 @@ contains
     integer :: unitn, ierr
     character(len=*), parameter :: subname = 'aero_model_readnl'
 
-    namelist /aerosol_nl/ sol_facti_cloud_borne, sol_factb_interstitial, sol_factic_interstitial, seasalt_emis_scale,  dms_emis_scale 
+    namelist /aerosol_nl/ sol_facti_cloud_borne, sol_factb_interstitial, sol_factic_interstitial, seasalt_emis_scale,  dms_emis_scale, &
+         emi_ss_ait, emi_ss_acc, emi_ss_coarse
     !-----------------------------------------------------------------------------
 
     ! Read namelist
@@ -151,6 +155,12 @@ contains
     if (ierr /= mpi_success) call endrun(subname//" mpi_bcast: seasalt_emis_scale")
     call mpi_bcast(dms_emis_scale, 1, mpi_real8, mstrid, mpicom, ierr)
     if (ierr /= mpi_success) call endrun(subname//" mpi_bcast: dms_emis_scale")
+    call mpi_bcast(emi_ss_ait, 1, mpi_real8, mstrid, mpicom, ierr)
+    if (ierr /= mpi_success) call endrun(subname//" mpi_bcast: emi_ss_ait")
+    call mpi_bcast(emi_ss_acc, 1, mpi_real8, mstrid, mpicom, ierr)
+    if (ierr /= mpi_success) call endrun(subname//" mpi_bcast: emi_ss_acc")
+    call mpi_bcast(emi_ss_coarse, 1, mpi_real8, mstrid, mpicom, ierr)
+    if (ierr /= mpi_success) call endrun(subname//" mpi_bcast: emi_ss_coarse")
     call oslo_aero_ctl_readnl(nlfilename)
     call oslo_aero_microp_readnl(nlfilename)
     call oslo_aero_dust_readnl(nlfilename)
@@ -257,7 +267,7 @@ contains
     call oslo_aero_ocean_init(dms_emis_scale)
     call oslo_aero_depos_init(pbuf2d, sol_facti_cloud_borne, sol_factb_interstitial, sol_factic_interstitial)
     call oslo_aero_dust_init()
-    call oslo_aero_seasalt_init(seasalt_emis_scale)
+    call oslo_aero_seasalt_init(seasalt_emis_scale, emi_ss_ait, emi_ss_acc, emi_ss_coarse)
     call oslo_aero_wetdep_init()
 
     dummy = 'RAM1'
