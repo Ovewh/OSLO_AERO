@@ -77,6 +77,7 @@ module oslo_aero_microp
   real(r8), protected :: wsubi_min ! minimum sub-grid vertical velocity (ice)
   real(r8), protected :: wsub_scale ! sub-grid vertical velocity (liquid) scale factor
   real(r8), protected :: wsubi_scale ! sub-grid vertical velocity (ice) scale factor
+  real(r8), protected :: npccn_scale ! activated CCN number scale factor
 
   integer :: npccn_idx, rndst_idx, nacon_idx
 
@@ -94,8 +95,9 @@ contains
     ! Namelist variables
     real(r8) :: microp_aero_bulk_scale  = 2._r8    ! prescribed aerosol bulk sulfur scale factor
 
+    real(r8) :: microp_aero_npccn_scale = unset_r8  ! activated CCN number scale factor
+
     ! NOTE: the following are not currently used - but are needed to have the namelist work in cam
-    real(r8) :: microp_aero_npccn_scale = unset_r8  ! prescribed aerosol bulk sulfur scale factor
     real(r8) :: microp_aero_wsub_scale = unset_r8   ! subgrid vertical velocity (liquid) scale factor
     real(r8) :: microp_aero_wsubi_scale = unset_r8  ! subgrid vertical velocity (ice) scale factor
     real(r8) :: microp_aero_wsub_min = unset_r8     ! subgrid vertical velocity (liquid) minimum (before scale factor)
@@ -140,11 +142,13 @@ contains
     wsubi_min = microp_aero_wsubi_min
     wsub_scale = microp_aero_wsub_scale
     wsubi_scale = microp_aero_wsubi_scale
+    npccn_scale = microp_aero_npccn_scale
 
     if(wsub_min == unset_r8) call endrun(subname//": FATAL: wsub_min is not set")
     if(wsubi_min == unset_r8) call endrun(subname//": FATAL: wsubi_min is not set")
     if(wsub_scale == unset_r8) call endrun(subname//": FATAL: wsub_scale is not set")
     if(wsubi_scale == unset_r8) call endrun(subname//": FATAL: wsubi_scale is not set")
+    if(npccn_scale == unset_r8) call endrun(subname//": FATAL: npccn_scale is not set")
 
     bulk_scale = microp_aero_bulk_scale
 
@@ -461,6 +465,8 @@ contains
             factnum )
     end if
     npccn(:ncol,:) = nctend_mixnuc(:ncol,:)
+
+    npccn(:ncol,:) = npccn(:ncol,:) * npccn_scale
 
     call physics_ptend_sum(ptend_loc, ptend_all, ncol)
     call physics_update(state1, ptend_loc, deltatin)
