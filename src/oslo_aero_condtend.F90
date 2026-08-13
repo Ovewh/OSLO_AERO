@@ -115,9 +115,9 @@ contains
       if(n_so4_monolayers_age == unset_r8) call endrun(subname//": FATAL: n_so4_monolayers_age is not set")
       
       call mpi_bcast(oslo_aero_nucl_scaling_factor, 1, mpi_real8, mstrid, mpicom, ierr)
-      if (ierr /= 0) call endrun(subname//": FATAL: mpi_bcast: oslo_aero_n_so4_monolayers_age")
+      if (ierr /= 0) call endrun(subname//": FATAL: mpi_bcast: oslo_aero_nucl_scaling_factor")
       nucl_scaling_factor = oslo_aero_nucl_scaling_factor
-      if(nucl_scaling_factor == unset_r8) call endrun(subname//": FATAL: n_so4_monolayers_age is not set")
+      if(nucl_scaling_factor == unset_r8) call endrun(subname//": FATAL: nucl_scaling_factor is not set")
 
       if (masterproc) then
           write(iulog,*) 'oslo_aero_condtend_nl: n_so4_monolayers_age set from namelist=',n_so4_monolayers_age

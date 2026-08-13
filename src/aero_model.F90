@@ -165,6 +165,7 @@ contains
     call oslo_aero_microp_readnl(nlfilename)
     call oslo_aero_dust_readnl(nlfilename)
     call oslo_aero_share_readnl(nlfilename)
+    call oslo_aero_condtend_readnl(nlfilename)
 
   end subroutine aero_model_readnl
 
