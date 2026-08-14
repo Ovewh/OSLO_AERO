@@ -49,7 +49,7 @@ module aero_model
   use oslo_aero_share,          only: getNumberofTracersInMode, getCloudTracerIndexDirect, getCloudTracerName
   use oslo_aero_share,          only: getTracerIndex
   use oslo_aero_control,        only: oslo_aero_ctl_readnl, use_aerocom
-  use oslo_aero_depos,          only: oslo_aero_depos_init
+  use oslo_aero_depos,          only: oslo_aero_depos_init, oslo_aero_depos_readnl
   use oslo_aero_depos,          only: oslo_aero_depos_dry, oslo_aero_depos_wet, oslo_aero_wetdep_init
   use oslo_aero_coag,           only: initializeCoagulation, coagtend, clcoag
   use oslo_aero_condtend,       only: N_COND_VAP, COND_VAP_ORG_SV, COND_VAP_ORG_LV, COND_VAP_H2SO4
@@ -166,6 +166,7 @@ contains
     call oslo_aero_dust_readnl(nlfilename)
     call oslo_aero_share_readnl(nlfilename)
     call oslo_aero_condtend_readnl(nlfilename)
+    call oslo_aero_depos_readnl(nlfilename)
 
   end subroutine aero_model_readnl
 
