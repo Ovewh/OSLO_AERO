@@ -9,7 +9,7 @@ module mo_setsox
   private
   public :: sox_inti, setsox
   public :: has_sox
-  public :: oslo_aero_anions_scale_factor
+  public :: oslo_aero_anions_scale_exponent
 
   logical            ::  inv_o3
   integer            ::  id_msa
@@ -24,7 +24,7 @@ module mo_setsox
 
   ! Indices for species in the shared array of Henry's Law constant parameters
   integer :: heff_id_hno3, heff_id_so2, heff_id_nh3, heff_id_co2, heff_id_h2o2, heff_id_o3
-  real(r8) :: oslo_aero_anions_scale_factor = 0.0_r8
+  real(r8) :: oslo_aero_anions_scale_exponent = 0.0_r8 ! log10 of anion multiplier in pH solve
 
 contains
 
@@ -295,7 +295,7 @@ contains
     real(r8) :: f_hso3 ! fraction of aqueous S(IV) that's HSO3-
     real(r8) :: f_so3  ! fraction of aqueous S(IV) that's SO3=
 
-    real(r8) :: anions_scale_factor
+    real(r8) :: anions_multiplier
 
     real(r8) :: hno3g(ncol,pver), nh3g(ncol,pver)
     !
@@ -427,7 +427,7 @@ contains
     !-----------------------------------------------------------------
     !       ... Temperature dependent Henry constants
     !-----------------------------------------------------------------
-    anions_scale_factor = oslo_aero_anions_scale_factor
+    anions_multiplier = 10.0_r8**oslo_aero_anions_scale_exponent
     
     ver_loop0: do k = 1,pver                               !! pver loop for STEP 0
        col_loop0: do i = 1,ncol
@@ -630,7 +630,7 @@ contains
                 tmp_so4 = cldconc%so4_fact*Eso4
                 tmp_pos = xph(i,k) + tmp_nh4
                 tmp_neg = tmp_oh + tmp_hco3 + tmp_no3 + tmp_hso3 + tmp_so3 + tmp_so4
-                tmp_neg = tmp_neg + tmp_neg*anions_scale_factor
+                tmp_neg = tmp_neg * anions_multiplier
                 ynetpos = tmp_pos - tmp_neg
 
 

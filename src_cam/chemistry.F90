@@ -366,7 +366,7 @@ end function chem_is
     use mo_sulf,          only: sulf_readnl
     use species_sums_diags, only: species_sums_readnl
     use ocean_emis,       only: ocean_emis_readnl
-    use mo_setsox,        only: oslo_aero_anions_scale_factor
+    use mo_setsox,        only: oslo_aero_anions_scale_exponent
 
     ! args
 
@@ -402,7 +402,7 @@ end function chem_is
          xs_coef_file, xs_short_file, &
          exo_coldens_file, &
          xs_long_file, rsf_file, photo_max_zen, &
-         depvel_lnd_file, drydep_srf_file, oslo_aero_anions_scale_factor, &
+         depvel_lnd_file, drydep_srf_file, oslo_aero_anions_scale_exponent, &
          srf_emis_type, srf_emis_cycle_yr, srf_emis_fixed_ymd, srf_emis_fixed_tod, srf_emis_specifier,  &
          fstrat_file, fstrat_list, &
          ext_frc_specifier, ext_frc_type, ext_frc_cycle_yr, ext_frc_fixed_ymd, ext_frc_fixed_tod
@@ -467,7 +467,7 @@ end function chem_is
 
     ! pH 
 
-    call mpibcast (oslo_aero_anions_scale_factor,1,                    mpir8,   0, mpicom)
+    call mpibcast (oslo_aero_anions_scale_exponent,1,                  mpir8,   0, mpicom)
 #ifdef SPMD
     ! Broadcast namelist variables
 
