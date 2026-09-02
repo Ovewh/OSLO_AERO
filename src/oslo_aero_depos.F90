@@ -44,6 +44,7 @@ module oslo_aero_depos
 
   ! Public interfaces
   public :: oslo_aero_depos_register
+  public :: oslo_aero_depos_readnl
   public :: oslo_aero_depos_init
   public :: oslo_aero_depos_dry ! dry deposition
   public :: oslo_aero_depos_wet ! wet deposition
@@ -66,7 +67,6 @@ module oslo_aero_depos
   real(r8), parameter, private :: unset_r8 = huge(1.0_r8)
   real(r8), parameter :: cmftau = 3600._r8
   real(r8), parameter :: molwta = 28.97_r8 ! molecular weight dry air gm/mole
-  real(r8) :: f_act_conv_coarse_dust = unset_r8
   real(r8) :: f_act_conv_interstitial = unset_r8
   type wetdep_inputs_t
      real(r8), pointer :: cldt(:,:)  => null()  ! cloud fraction
@@ -125,12 +125,11 @@ contains
 
    ! Namelist variables
    real(r8) :: oslo_aero_f_act_conv_interstitial = unset_r8 ! prescribed lifecycle of modes
-   real(r8) :: oslo_aero_f_act_conv_coarse_dust = unset_r8
 
    integer :: unitn, ierr
    character(len=*), parameter :: subname='oslo_aero_depos_readnl'
 
-   namelist /oslo_aero_depos_nl/ oslo_aero_f_act_conv_coarse_dust, oslo_aero_f_act_conv_interstitial
+   namelist /oslo_aero_depos_nl/ oslo_aero_f_act_conv_interstitial
    !-----------------------------------------------------------------------
    
    if (masterproc) then
@@ -145,10 +144,6 @@ contains
       close(unitn)
    end if
 
-   call mpi_bcast(oslo_aero_f_act_conv_coarse_dust,1, mpi_real8,mstrid,mpicom, ierr)
-   if (ierr /= mpi_success) call endrun(subname // ': mpi_bcast oslo_aero_f_act_conv_coarse_dust')
-   if (oslo_aero_f_act_conv_coarse_dust == huge(1.0_r8)) call endrun(subname // ': ERROR oslo_aero_f_act_conv_coarse_dust not set in namelist')
-   f_act_conv_coarse_dust = oslo_aero_f_act_conv_coarse_dust
    call mpi_bcast(oslo_aero_f_act_conv_interstitial,1, mpi_real8,mstrid,mpicom, ierr)
    if (ierr /= mpi_success) call endrun(subname // ': mpi_bcast oslo_aero_f_act_conv_interstitial')
 
@@ -156,7 +151,6 @@ contains
    if (f_act_conv_interstitial == huge(1.0_r8)) call endrun(subname // ': ERROR f_act_conv_interstitial not set in namelist')
 
    if (masterproc) then
-      write(iulog,*) 'oslo_aero_depos_readnl: f_act_conv_coarse_dust = ', f_act_conv_coarse_dust
       write(iulog,*) 'oslo_aero_depos_readnl: f_act_conv_interstitial = ', f_act_conv_interstitial
    end if
 
@@ -741,7 +735,7 @@ contains
     ! calculate the mass-weighted sol_factic for coarse mode species
     !    sol_factic_coarse(:,:) = 0.30_r8   ! tuned 1/4
     f_act_conv_coarse(:,:) = 0.60_r8   ! rce 2010/05/02
-    f_act_conv_coarse_dust = f_act_conv_coarse_dust  ! rce 2010/05/02
+    f_act_conv_coarse_dust = 0.40_r8   ! rce 2010/05/02
     f_act_conv_coarse_nacl = 0.80_r8   ! rce 2010/05/02
     f_act_conv_coarse(:,:) = 0.5_r8
 
